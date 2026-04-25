@@ -92,6 +92,10 @@ export function decodeWav(input: Uint8Array | ArrayBuffer) {
   const bytes = ensureArrayBufferView(input);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
+  if (bytes.length < WAV_HEADER_SIZE) {
+    throw new Error("WAV buffer too small");
+  }
+
   if (readAscii(bytes, 0, 4) !== "RIFF" || readAscii(bytes, 8, 4) !== "WAVE") {
     throw new Error("Unsupported WAV format");
   }
@@ -108,15 +112,19 @@ export function decodeWav(input: Uint8Array | ArrayBuffer) {
     const chunkId = readAscii(bytes, offset, 4);
     const chunkSize = view.getUint32(offset + 4, true);
     offset += 8;
+    const chunkEnd = Math.min(bytes.length, offset + chunkSize);
 
     if (chunkId === "fmt ") {
+      if (chunkEnd - offset < 16) {
+        throw new Error("WAV fmt chunk too small");
+      }
       format = view.getUint16(offset, true);
       channels = view.getUint16(offset + 2, true);
       sampleRate = view.getUint32(offset + 4, true);
       bitsPerSample = view.getUint16(offset + 14, true);
     } else if (chunkId === "data") {
       dataOffset = offset;
-      dataSize = chunkSize;
+      dataSize = Math.max(0, chunkEnd - dataOffset);
       break;
     }
 
@@ -127,7 +135,12 @@ export function decodeWav(input: Uint8Array | ArrayBuffer) {
     throw new Error("WAV data chunk missing");
   }
 
-  const frameCount = dataSize / (bitsPerSample / 8) / channels;
+  const bytesPerSample = bitsPerSample / 8;
+  if (!Number.isFinite(bytesPerSample) || bytesPerSample <= 0 || channels <= 0) {
+    throw new Error(`Invalid WAV format metadata (${format}/${bitsPerSample}/${channels})`);
+  }
+
+  const frameCount = Math.floor(dataSize / bytesPerSample / channels);
   const mono = new Int16Array(frameCount);
 
   if (format === 1 && bitsPerSample === 16) {
@@ -135,6 +148,7 @@ export function decodeWav(input: Uint8Array | ArrayBuffer) {
       let mixed = 0;
       for (let channel = 0; channel < channels; channel++) {
         const sampleOffset = dataOffset + (frame * channels + channel) * 2;
+        if (sampleOffset + 2 > bytes.length) break;
         mixed += view.getInt16(sampleOffset, true);
       }
       mono[frame] = clampToInt16(mixed / channels);
@@ -144,6 +158,7 @@ export function decodeWav(input: Uint8Array | ArrayBuffer) {
       let mixed = 0;
       for (let channel = 0; channel < channels; channel++) {
         const sampleOffset = dataOffset + (frame * channels + channel) * 4;
+        if (sampleOffset + 4 > bytes.length) break;
         mixed += view.getFloat32(sampleOffset, true);
       }
       mono[frame] = clampToInt16((mixed / channels) * 32767);
@@ -175,8 +190,8 @@ export function encodeMuLaw(sample: number) {
   }
 
   const mantissa = (pcm >> (segment + 3)) & 0x0f;
-  const muLaw = ~(segment << 4 | mantissa);
-  return (muLaw & mask) & 0xff;
+  const muLaw = ~((segment << 4) | mantissa);
+  return muLaw & mask & 0xff;
 }
 
 export function decodeMuLaw(byte: number) {

@@ -10,7 +10,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { generateReport } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/runs/$runId")({
-  component: () => <AuthGuard><RunDetail /></AuthGuard>,
+  component: () => (
+    <AuthGuard>
+      <RunDetail />
+    </AuthGuard>
+  ),
 });
 
 type SalesReport = {
@@ -28,13 +32,22 @@ type SalesReport = {
 };
 
 type Run = {
-  id: string; status: string; transcript: string | null;
-  error: string | null; started_at: string; completed_at: string | null;
-  report: SalesReport | null; report_generated_at: string | null;
+  id: string;
+  status: string;
+  transcript: string | null;
+  error: string | null;
+  started_at: string;
+  completed_at: string | null;
+  report: SalesReport | null;
+  report_generated_at: string | null;
+  call_transport: "twilio" | "dummy";
   target_phone_number: string | null;
   twilio_call_sid: string | null;
   twilio_stream_sid: string | null;
   twilio_call_status: string | null;
+  dummy_call_id: string | null;
+  dummy_call_status: string | null;
+  dummy_device_session_id: string | null;
 };
 
 function RunDetail() {
@@ -47,31 +60,55 @@ function RunDetail() {
 
   useEffect(() => {
     if (!user) return;
-    const load = () => supabase.from("runs").select("*").eq("id", runId).maybeSingle().then(({ data }) => {
-      if (data) setRun(data as unknown as Run);
-    });
+    const load = () =>
+      supabase
+        .from("runs")
+        .select("*")
+        .eq("id", runId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setRun(data as unknown as Run);
+        });
     load();
-    const channel = supabase.channel(`run-${runId}`).on("postgres_changes", { event: "UPDATE", schema: "public", table: "runs", filter: `id=eq.${runId}` }, load).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const channel = supabase
+      .channel(`run-${runId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "runs", filter: `id=eq.${runId}` },
+        load,
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [runId, user]);
 
   const deleteRun = async () => {
     if (!confirm("Delete this conversation transcript? This cannot be undone.")) return;
     const { error } = await supabase.from("runs").delete().eq("id", runId);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Conversation deleted");
     navigate({ to: "/dashboard" });
   };
 
   const buildReport = async () => {
-    if (!run?.transcript?.trim()) { toast.error("No transcript to analyze"); return; }
+    if (!run?.transcript?.trim()) {
+      toast.error("No transcript to analyze");
+      return;
+    }
     setGenerating(true);
     try {
       const { reportJson } = await generateFn({ data: { transcript: run.transcript } });
       const report = JSON.parse(reportJson) as SalesReport;
       const { error } = await supabase
         .from("runs")
-        .update({ report: report as unknown as never, report_generated_at: new Date().toISOString() })
+        .update({
+          report: report as unknown as never,
+          report_generated_at: new Date().toISOString(),
+        })
         .eq("id", runId);
       if (error) throw new Error(error.message);
       toast.success("Report generated");
@@ -86,7 +123,10 @@ function RunDetail() {
     <AppShell>
       <div className="mx-auto max-w-4xl px-6 py-8">
         <div className="flex items-center justify-between">
-          <button onClick={() => navigate({ to: "/dashboard" })} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <button
+            onClick={() => navigate({ to: "/dashboard" })}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
           {run && (
@@ -98,26 +138,58 @@ function RunDetail() {
             </button>
           )}
         </div>
-        {!run ? <div className="mt-12 text-sm text-muted-foreground">Loading…</div> : (
+        {!run ? (
+          <div className="mt-12 text-sm text-muted-foreground">Loading…</div>
+        ) : (
           <div className="mt-6 space-y-8">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Conversation</p>
-              <h1 className="mt-2 font-display text-3xl">{new Date(run.started_at).toLocaleString()}</h1>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Conversation
+              </p>
+              <h1 className="mt-2 font-display text-3xl">
+                {new Date(run.started_at).toLocaleString()}
+              </h1>
               <div className="mt-3 flex gap-3 text-sm text-muted-foreground">
-                <span>Status: <span className="text-foreground">{run.status}</span></span>
-                {run.target_phone_number && <span>To: <span className="text-foreground">{run.target_phone_number}</span></span>}
-                {run.twilio_call_status && <span>Twilio: <span className="text-foreground">{run.twilio_call_status}</span></span>}
+                <span>
+                  Status: <span className="text-foreground">{run.status}</span>
+                </span>
+                <span>
+                  Transport: <span className="text-foreground">{run.call_transport}</span>
+                </span>
+                {run.target_phone_number && (
+                  <span>
+                    To: <span className="text-foreground">{run.target_phone_number}</span>
+                  </span>
+                )}
+                {run.call_transport === "twilio" && run.twilio_call_status && (
+                  <span>
+                    Twilio: <span className="text-foreground">{run.twilio_call_status}</span>
+                  </span>
+                )}
+                {run.call_transport === "dummy" && run.dummy_call_status && (
+                  <span>
+                    Dummy: <span className="text-foreground">{run.dummy_call_status}</span>
+                  </span>
+                )}
               </div>
             </div>
-            {run.error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{run.error}</div>}
+            {run.error && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                {run.error}
+              </div>
+            )}
 
             {!run.transcript && !run.error && (
               <div className="rounded-md border border-border/50 bg-card/40 p-4 text-sm text-muted-foreground">
                 {run.status === "dialing"
                   ? "Launching outbound call..."
-                  : run.status === "in_progress"
-                    ? "Call is live. Waiting for transcript..."
-                    : "Waiting for Twilio call updates..."}
+                  : run.status === "ringing"
+                    ? "Phone is ringing..."
+                    : run.status === "in_progress"
+                      ? "Call is live. Waiting for transcript..."
+                      : run.call_transport === "dummy"
+                        ? "Waiting for dummy phone updates..."
+                        : "Waiting for Twilio call updates..."}
               </div>
             )}
 
@@ -132,10 +204,22 @@ function RunDetail() {
                         : "AI-generated structured analysis for the sales head."}
                     </p>
                   </div>
-                  <Button onClick={buildReport} disabled={generating} size="sm" variant={run.report ? "outline" : "default"}>
-                    {generating
-                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing…</>
-                      : <><Sparkles className="h-3.5 w-3.5" /> {run.report ? "Regenerate" : "Generate report"}</>}
+                  <Button
+                    onClick={buildReport}
+                    disabled={generating}
+                    size="sm"
+                    variant={run.report ? "outline" : "default"}
+                  >
+                    {generating ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />{" "}
+                        {run.report ? "Regenerate" : "Generate report"}
+                      </>
+                    )}
                   </Button>
                 </div>
                 {run.report && <ReportView report={run.report} />}
@@ -145,7 +229,9 @@ function RunDetail() {
             {run.transcript && (
               <div className="rounded-xl border border-border/60 bg-card/60 p-6">
                 <h2 className="font-display text-lg">Transcript</h2>
-                <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-relaxed">{run.transcript}</pre>
+                <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                  {run.transcript}
+                </pre>
               </div>
             )}
           </div>
@@ -167,7 +253,11 @@ function ReportView({ report }: { report: SalesReport }) {
       <p className="text-sm leading-relaxed">{report.summary}</p>
 
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="Sentiment" value={report.sentiment} valueClass={sentimentColor[report.sentiment]} />
+        <Stat
+          label="Sentiment"
+          value={report.sentiment}
+          valueClass={sentimentColor[report.sentiment]}
+        />
         <Stat label="Intent" value={`${report.intent_score}/10`} />
         <Stat label="Stage" value={report.stage.replace(/_/g, " ")} />
       </div>
@@ -181,7 +271,9 @@ function ReportView({ report }: { report: SalesReport }) {
 
       {report.quotable_moments?.length > 0 && (
         <div>
-          <h3 className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quotable moments</h3>
+          <h3 className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            Quotable moments
+          </h3>
           <div className="mt-3 space-y-3">
             {report.quotable_moments.map((q, i) => (
               <blockquote key={i} className="border-l-2 border-accent/40 pl-4">

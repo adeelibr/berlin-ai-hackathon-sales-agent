@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
+import { Route as PhoneDummyNumberRouteImport } from './routes/phone-dummy.$number'
 import { Route as FlowsFlowIdRouteImport } from './routes/flows.$flowId'
 import { Route as ConversationsRunIdRouteImport } from './routes/conversations.$runId'
 import { Route as ApiTwilioMediaStreamRouteImport } from './routes/api/twilio/media-stream'
@@ -37,6 +38,11 @@ const IndexRoute = IndexRouteImport.update({
 const RunsRunIdRoute = RunsRunIdRouteImport.update({
   id: '/runs/$runId',
   path: '/runs/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhoneDummyNumberRoute = PhoneDummyNumberRouteImport.update({
+  id: '/phone-dummy/$number',
+  path: '/phone-dummy/$number',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlowsFlowIdRoute = FlowsFlowIdRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/phone-dummy/$number': typeof PhoneDummyNumberRoute
   '/runs/$runId': typeof RunsRunIdRoute
   '/api/twilio/media-stream': typeof ApiTwilioMediaStreamRoute
   '/api/twilio/status/$runId': typeof ApiTwilioStatusRunIdRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/phone-dummy/$number': typeof PhoneDummyNumberRoute
   '/runs/$runId': typeof RunsRunIdRoute
   '/api/twilio/media-stream': typeof ApiTwilioMediaStreamRoute
   '/api/twilio/status/$runId': typeof ApiTwilioStatusRunIdRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/phone-dummy/$number': typeof PhoneDummyNumberRoute
   '/runs/$runId': typeof RunsRunIdRoute
   '/api/twilio/media-stream': typeof ApiTwilioMediaStreamRoute
   '/api/twilio/status/$runId': typeof ApiTwilioStatusRunIdRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/conversations/$runId'
     | '/flows/$flowId'
+    | '/phone-dummy/$number'
     | '/runs/$runId'
     | '/api/twilio/media-stream'
     | '/api/twilio/status/$runId'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/conversations/$runId'
     | '/flows/$flowId'
+    | '/phone-dummy/$number'
     | '/runs/$runId'
     | '/api/twilio/media-stream'
     | '/api/twilio/status/$runId'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/conversations/$runId'
     | '/flows/$flowId'
+    | '/phone-dummy/$number'
     | '/runs/$runId'
     | '/api/twilio/media-stream'
     | '/api/twilio/status/$runId'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ConversationsRunIdRoute: typeof ConversationsRunIdRoute
   FlowsFlowIdRoute: typeof FlowsFlowIdRoute
+  PhoneDummyNumberRoute: typeof PhoneDummyNumberRoute
   RunsRunIdRoute: typeof RunsRunIdRoute
   ApiTwilioMediaStreamRoute: typeof ApiTwilioMediaStreamRoute
   ApiTwilioStatusRunIdRoute: typeof ApiTwilioStatusRunIdRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/runs/$runId'
       fullPath: '/runs/$runId'
       preLoaderRoute: typeof RunsRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/phone-dummy/$number': {
+      id: '/phone-dummy/$number'
+      path: '/phone-dummy/$number'
+      fullPath: '/phone-dummy/$number'
+      preLoaderRoute: typeof PhoneDummyNumberRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/flows/$flowId': {
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ConversationsRunIdRoute: ConversationsRunIdRoute,
   FlowsFlowIdRoute: FlowsFlowIdRoute,
+  PhoneDummyNumberRoute: PhoneDummyNumberRoute,
   RunsRunIdRoute: RunsRunIdRoute,
   ApiTwilioMediaStreamRoute: ApiTwilioMediaStreamRoute,
   ApiTwilioStatusRunIdRoute: ApiTwilioStatusRunIdRoute,

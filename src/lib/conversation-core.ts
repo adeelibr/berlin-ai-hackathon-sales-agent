@@ -7,7 +7,7 @@ import {
   pcm16ToMuLaw,
   resamplePcm16,
   wavBase64ToMulawBase64,
-} from "@/lib/audio-utils";
+} from "./audio-utils";
 
 export type Turn = {
   role: "assistant" | "user";
@@ -20,29 +20,43 @@ export type FlowContext = {
   persona: string;
 };
 
-type GeminiContent = {
-  role: "user" | "model";
-  parts: Array<{ text: string }>;
+type OpenAIMessage = {
+  role: "user" | "assistant";
+  content: string;
 };
 
-type GeminiOptions = {
+type OpenAITextOptions = {
   apiKey: string;
-  system: string;
-  contents: GeminiContent[];
-  generationConfig?: Record<string, unknown>;
+  instructions: string;
+  messages: OpenAIMessage[];
+  temperature?: number;
+  textFormat?:
+    | {
+        type: "text";
+      }
+    | {
+        type: "json_schema";
+        name: string;
+        schema: Record<string, unknown>;
+        strict?: boolean;
+        description?: string;
+      };
+  maxOutputTokens?: number;
 };
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const DEFAULT_GRADIUM_VOICE = "YTpq7expH9539ERJ";
 
-export async function generateAgentReply(data: FlowContext & {
-  history: Turn[];
-  nextRole: "assistant" | "user";
-}) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+export async function generateAgentReply(
+  data: FlowContext & {
+    history: Turn[];
+    nextRole: "assistant" | "user";
+  },
+) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
-  const system = `You are a voice agent in a live spoken conversation.
+  const instructions = `You are a voice agent in a live spoken conversation.
 
 About us:
 ${data.whoWeAre || "(not provided)"}
@@ -59,21 +73,19 @@ Rules:
 - No stage directions like *smiles*. Just say what you'd say out loud.
 - If the user just joined and there is no prior turn, open with a warm greeting that introduces who we are in one sentence and asks an open question.`;
 
-  const contents: GeminiContent[] =
+  const messages: OpenAIMessage[] =
     data.history.length === 0 && data.nextRole === "assistant"
-      ? [{ role: "user", parts: [{ text: "(The user has just joined. Greet them.)" }] }]
+      ? [{ role: "user", content: "(The user has just joined. Greet them.)" }]
       : data.history.map((message) => ({
-          role: message.role === "assistant" ? "model" : "user",
-          parts: [{ text: message.content }],
+          role: message.role,
+          content: message.content,
         }));
 
-  return generateGeminiText({
+  return generateOpenAIText({
     apiKey,
-    system,
-    contents,
-    generationConfig: {
-      temperature: 0.7,
-    },
+    instructions,
+    messages,
+    temperature: 0.7,
   });
 }
 
@@ -110,6 +122,10 @@ export async function synthesizeSpeech(data: { text: string; voiceId?: string })
 export async function transcribeAudio(data: { audioBase64: string }) {
   const apiKey = process.env.GRADIUM_API_KEY;
   if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
+
+  if (isNodeRuntime()) {
+    return transcribeAudioInNode({ apiKey, audioBase64: data.audioBase64 });
+  }
 
   const transcript = await new Promise<string>((resolve, reject) => {
     const parts: string[] = [];
@@ -188,66 +204,175 @@ export async function transcribeAudio(data: { audioBase64: string }) {
   return { transcript };
 }
 
+async function transcribeAudioInNode(data: { apiKey: string; audioBase64: string }) {
+  const { default: NodeWebSocket } = await import("ws");
+  const wsUrl = process.env.GRADIUM_ASR_WS_URL || "wss://api.gradium.ai/api/speech/asr";
+
+  const transcript = await new Promise<string>((resolve, reject) => {
+    const parts: string[] = [];
+    let settled = false;
+    let socket: InstanceType<typeof NodeWebSocket> | null = null;
+
+    const finish = (err: Error | null) => {
+      if (settled) return;
+      settled = true;
+      try {
+        socket?.close();
+      } catch {
+        // ignore close errors
+      }
+      if (err) reject(err);
+      else resolve(parts.join(" ").replace(/\s+/g, " ").trim());
+    };
+
+    const timeout = setTimeout(() => finish(new Error("STT timeout")), 60_000);
+
+    try {
+      socket = new NodeWebSocket(wsUrl, {
+        headers: {
+          "x-api-key": data.apiKey,
+        },
+      });
+
+      socket.on("open", () => {
+        socket?.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
+      });
+
+      socket.on("message", (raw) => {
+        const text = typeof raw === "string" ? raw : raw.toString("utf8");
+        if (!text) return;
+
+        let message: { type?: string; text?: string; message?: string };
+        try {
+          message = JSON.parse(text);
+        } catch {
+          return;
+        }
+
+        if (message.type === "ready") {
+          socket?.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
+          socket?.send(JSON.stringify({ type: "end_of_stream" }));
+        } else if (message.type === "text" && typeof message.text === "string") {
+          parts.push(message.text);
+        } else if (message.type === "end_of_stream") {
+          clearTimeout(timeout);
+          finish(null);
+        } else if (message.type === "error") {
+          clearTimeout(timeout);
+          finish(new Error(message.message || "Gradium STT error"));
+        }
+      });
+
+      socket.on("close", () => {
+        clearTimeout(timeout);
+        finish(null);
+      });
+
+      socket.on("error", (error) => {
+        clearTimeout(timeout);
+        finish(error instanceof Error ? error : new Error("Gradium WebSocket error"));
+      });
+    } catch (error) {
+      clearTimeout(timeout);
+      finish(error instanceof Error ? error : new Error("Gradium WS connect failed"));
+    }
+  });
+
+  return { transcript };
+}
+
 export async function generateSalesReport(data: { transcript: string }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
   if (!data.transcript?.trim()) throw new Error("Transcript is empty");
 
-  const system = "You are a senior sales analyst. You are given a transcript of a spoken conversation between an AI agent and a prospect/customer. Produce a concise, structured report a Head of Sales can skim in 30 seconds. Be honest - if signal is weak, say so. Never invent facts not present in the transcript.";
+  const instructions =
+    "You are a senior sales analyst. You are given a transcript of a spoken conversation between an AI agent and a prospect/customer. Produce a concise, structured report a Head of Sales can skim in 30 seconds. Be honest - if signal is weak, say so. Never invent facts not present in the transcript.";
 
   const responseSchema = {
-    type: "OBJECT",
+    type: "object",
+    additionalProperties: false,
     properties: {
-      summary: { type: "STRING" },
-      sentiment: { type: "STRING", enum: ["positive", "neutral", "negative", "mixed"] },
-      intent_score: { type: "INTEGER" },
-      stage: { type: "STRING", enum: ["discovery", "qualification", "evaluation", "negotiation", "closed_won", "closed_lost", "no_fit", "unclear"] },
-      key_topics: { type: "ARRAY", items: { type: "STRING" } },
-      pain_points: { type: "ARRAY", items: { type: "STRING" } },
-      objections: { type: "ARRAY", items: { type: "STRING" } },
-      opportunities: { type: "ARRAY", items: { type: "STRING" } },
-      next_steps: { type: "ARRAY", items: { type: "STRING" } },
-      risk_flags: { type: "ARRAY", items: { type: "STRING" } },
+      summary: { type: "string" },
+      sentiment: { type: "string", enum: ["positive", "neutral", "negative", "mixed"] },
+      intent_score: { type: "integer" },
+      stage: {
+        type: "string",
+        enum: [
+          "discovery",
+          "qualification",
+          "evaluation",
+          "negotiation",
+          "closed_won",
+          "closed_lost",
+          "no_fit",
+          "unclear",
+        ],
+      },
+      key_topics: { type: "array", items: { type: "string" } },
+      pain_points: { type: "array", items: { type: "string" } },
+      objections: { type: "array", items: { type: "string" } },
+      opportunities: { type: "array", items: { type: "string" } },
+      next_steps: { type: "array", items: { type: "string" } },
+      risk_flags: { type: "array", items: { type: "string" } },
       quotable_moments: {
-        type: "ARRAY",
+        type: "array",
         items: {
-          type: "OBJECT",
+          type: "object",
+          additionalProperties: false,
           properties: {
-            quote: { type: "STRING" },
-            why_it_matters: { type: "STRING" },
+            quote: { type: "string" },
+            why_it_matters: { type: "string" },
           },
           required: ["quote", "why_it_matters"],
         },
       },
     },
-    required: ["summary", "sentiment", "intent_score", "stage", "key_topics", "pain_points", "objections", "opportunities", "next_steps", "risk_flags", "quotable_moments"],
+    required: [
+      "summary",
+      "sentiment",
+      "intent_score",
+      "stage",
+      "key_topics",
+      "pain_points",
+      "objections",
+      "opportunities",
+      "next_steps",
+      "risk_flags",
+      "quotable_moments",
+    ],
   };
 
-  const text = await generateGeminiText({
+  const text = await generateOpenAIText({
     apiKey,
-    system,
-    contents: [
+    instructions,
+    messages: [
       {
         role: "user",
-        parts: [{ text: `Analyze this transcript and produce the structured sales report.\n\nTranscript:\n\n${data.transcript}` }],
+        content: `Analyze this transcript and produce the structured sales report.\n\nTranscript:\n\n${data.transcript}`,
       },
     ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema,
-      temperature: 0.4,
+    temperature: 0.4,
+    textFormat: {
+      type: "json_schema",
+      name: "sales_report",
+      schema: responseSchema,
+      strict: true,
+      description: "Structured sales call report for a head of sales.",
     },
   });
 
   try {
     return { reportJson: JSON.stringify(JSON.parse(text)) };
   } catch {
-    throw new Error("Gemini returned malformed JSON");
+    throw new Error("OpenAI returned malformed JSON");
   }
 }
 
 export function buildTranscriptText(history: Turn[]) {
-  return history.map((turn) => `${turn.role === "assistant" ? "Agent" : "You"}: ${turn.content}`).join("\n");
+  return history
+    .map((turn) => `${turn.role === "assistant" ? "Agent" : "You"}: ${turn.content}`)
+    .join("\n");
 }
 
 export function parseTranscriptText(transcript: string | null | undefined): Turn[] {
@@ -290,39 +415,89 @@ export function pcm16ToWavBase64(samples: Int16Array, sampleRate: number) {
   return bytesToBase64(encodePcm16Wav(samples, sampleRate));
 }
 
-async function generateGeminiText({
+async function generateOpenAIText({
   apiKey,
-  system,
-  contents,
-  generationConfig,
-}: GeminiOptions) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  instructions,
+  messages,
+  temperature,
+  textFormat,
+  maxOutputTokens,
+}: OpenAITextOptions) {
+  const url = "https://api.openai.com/v1/responses";
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents,
-      generationConfig,
+      model: OPENAI_MODEL,
+      instructions,
+      input: messages.map((message) => buildOpenAIInputMessage(message)),
+      temperature,
+      max_output_tokens: maxOutputTokens,
+      text: textFormat
+        ? {
+            format: textFormat,
+          }
+        : undefined,
     }),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 429) throw new Error("Gemini rate limit - try again shortly.");
+    if (res.status === 429) throw new Error("OpenAI rate limit - try again shortly.");
     if (res.status === 401 || res.status === 403) {
-      throw new Error("Gemini API key invalid or lacks access.");
+      throw new Error("OpenAI API key invalid or lacks access.");
     }
-    throw new Error(`Gemini error ${res.status}: ${text.slice(0, 200)}`);
+    throw new Error(`OpenAI error ${res.status}: ${text.slice(0, 200)}`);
   }
 
   const json = await res.json();
-  const text = json?.candidates?.[0]?.content?.parts
-    ?.map((part: { text?: string }) => part.text ?? "")
-    .join("")
-    .trim();
+  const text = extractOpenAIOutputText(json);
 
-  if (!text) throw new Error("Gemini returned no content");
+  if (!text) throw new Error("OpenAI returned no content");
   return text;
+}
+
+function extractOpenAIOutputText(json: unknown) {
+  if (!json || typeof json !== "object") return "";
+  const response = json as {
+    output?: Array<{
+      type?: string;
+      content?: Array<{ type?: string; text?: string }>;
+    }>;
+  };
+
+  return (
+    response.output
+      ?.flatMap((item) => (item.type === "message" ? (item.content ?? []) : []))
+      .filter((contentItem) => contentItem.type === "output_text")
+      .map((contentItem) => contentItem.text ?? "")
+      .join("")
+      .trim() ?? ""
+  );
+}
+
+function isNodeRuntime() {
+  return typeof process !== "undefined" && process.release?.name === "node";
+}
+
+function buildOpenAIInputMessage(message: OpenAIMessage) {
+  return {
+    type: "message",
+    role: message.role,
+    content: [
+      message.role === "assistant"
+        ? {
+            type: "output_text" as const,
+            text: message.content,
+          }
+        : {
+            type: "input_text" as const,
+            text: message.content,
+          },
+    ],
+  };
 }

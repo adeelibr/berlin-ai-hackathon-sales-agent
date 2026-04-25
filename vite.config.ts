@@ -30,6 +30,6 @@ export default defineConfig(({ command }) => ({
   server: {
     host: "::",
     port: 8080,
-    allowedHosts: ["8ca2-2a02-2455-8729-f500-d530-e9f8-aa59-7bf8.ngrok-free.app"]
+    allowedHosts: ["be1e-2a02-2455-8729-f500-d530-e9f8-aa59-7bf8.ngrok-free.app"]
   },
 }));

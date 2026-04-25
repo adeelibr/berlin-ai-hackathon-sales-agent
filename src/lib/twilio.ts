@@ -1,20 +1,15 @@
 import twilio from "twilio";
 
+import { getCallTargetNumber } from "@/lib/call-config";
 import { logTwilio, maskAccountSid, maskPhoneNumber } from "@/lib/twilio-logging";
 
-const TERMINAL_TWILIO_STATUSES = new Set([
-  "completed",
-  "busy",
-  "failed",
-  "no-answer",
-  "canceled",
-]);
+const TERMINAL_TWILIO_STATUSES = new Set(["completed", "busy", "failed", "no-answer", "canceled"]);
 
 export function getTwilioConfig() {
   const accountSid = getRequiredEnv("TWILIO_ACCOUNT_SID");
   const authToken = getRequiredEnv("TWILIO_AUTH_TOKEN");
   const fromNumber = getRequiredEnv("TWILIO_FROM_NUMBER");
-  const toNumber = getRequiredEnv("TWILIO_TO_NUMBER");
+  const toNumber = getCallTargetNumber();
   const publicBaseUrl = getRequiredEnv("PUBLIC_BASE_URL").replace(/\/$/, "");
 
   return {
@@ -56,14 +51,17 @@ export async function createTwilioCall(runId: string) {
   params.append("StatusCallbackEvent", "answered");
   params.append("StatusCallbackEvent", "completed");
 
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Calls.json`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${encodeBase64(`${config.accountSid}:${config.authToken}`)}`,
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+  const res = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Calls.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBase64(`${config.accountSid}:${config.authToken}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: params.toString(),
     },
-    body: params.toString(),
-  });
+  );
 
   const json = await res.json().catch(() => null);
   if (!res.ok) {
@@ -78,7 +76,10 @@ export async function createTwilioCall(runId: string) {
       toPhone: config.toNumber,
       accountSid: config.accountSid,
     });
-    const message = typeof json?.message === "string" ? json.message : `Twilio call creation failed (${res.status})`;
+    const message =
+      typeof json?.message === "string"
+        ? json.message
+        : `Twilio call creation failed (${res.status})`;
     throw new Error(message);
   }
 
@@ -107,14 +108,17 @@ export async function endTwilioCall(callSid: string) {
     accountSid: config.accountSid,
   });
 
-  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Calls/${callSid}.json`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${encodeBase64(`${config.accountSid}:${config.authToken}`)}`,
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+  await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Calls/${callSid}.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBase64(`${config.accountSid}:${config.authToken}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: params.toString(),
     },
-    body: params.toString(),
-  }).catch((error) => {
+  ).catch((error) => {
     logTwilio("warn", "end-call:failed", {
       callSid,
       accountSid: config.accountSid,
@@ -170,7 +174,10 @@ export function isTerminalTwilioStatus(status: string | null | undefined) {
   return !!status && TERMINAL_TWILIO_STATUSES.has(status);
 }
 
-export async function validateTwilioRequestSignature(request: Request, params?: Record<string, string>) {
+export async function validateTwilioRequestSignature(
+  request: Request,
+  params?: Record<string, string>,
+) {
   const authToken = getRequiredEnv("TWILIO_AUTH_TOKEN");
   const signature = request.headers.get("X-Twilio-Signature");
   if (!signature) {
