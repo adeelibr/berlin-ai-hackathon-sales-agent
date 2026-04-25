@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildTwimlStreamResponse, toTwilioParamRecord, validateTwilioRequestSignature } from "@/lib/twilio";
+import {
+  buildTwimlStreamResponse,
+  toTwilioParamRecord,
+  validateTwilioRequestSignature,
+} from "@/lib/twilio";
 import { logTwilio } from "@/lib/twilio-logging";
 
 async function buildTwimlResponse(request: Request, runId: string) {
   const params =
-    request.method === "POST"
-      ? toTwilioParamRecord(await request.clone().formData())
-      : undefined;
+    request.method === "POST" ? toTwilioParamRecord(await request.clone().formData()) : undefined;
   logTwilio("info", "twiml:request", {
     runId,
     method: request.method,
@@ -30,7 +32,7 @@ async function buildTwimlResponse(request: Request, runId: string) {
     method: request.method,
     callSid: params?.CallSid ?? null,
   });
-  return new Response(buildTwimlStreamResponse(runId), {
+  return new Response(buildTwimlStreamResponse({ runId, callSid: params?.CallSid ?? null }), {
     status: 200,
     headers: {
       "Content-Type": "text/xml; charset=utf-8",

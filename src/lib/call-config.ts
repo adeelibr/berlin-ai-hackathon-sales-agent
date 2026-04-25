@@ -24,6 +24,18 @@ export function getDummyPhoneWebSocketBaseUrl() {
   return toWebSocketUrl(getDummyPhoneServiceUrl());
 }
 
+export function getTwilioMediaStreamBaseUrl() {
+  const value = process.env.TWILIO_MEDIA_STREAM_BASE_URL || process.env.DUMMY_PHONE_SERVICE_URL;
+  if (!value) {
+    throw new Error("TWILIO_MEDIA_STREAM_BASE_URL not configured");
+  }
+  return value.replace(/\/$/, "");
+}
+
+export function getTwilioMediaStreamWebSocketBaseUrl() {
+  return toWebSocketUrl(getTwilioMediaStreamBaseUrl());
+}
+
 export function getPublicBaseUrl() {
   return process.env.PUBLIC_BASE_URL?.replace(/\/$/, "") ?? null;
 }

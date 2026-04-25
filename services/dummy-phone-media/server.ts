@@ -1,19 +1,30 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import * as wrtcModule from "@roamhq/wrtc";
 import { supabaseAdmin } from "../../src/integrations/supabase/client.server";
 import {
   buildTranscriptText,
   generateAgentReply,
+  gradiumWavToTwilioMulawBase64,
   parseTranscriptText,
+  rawMulawBytesToGradiumWavBase64,
   synthesizeSpeech,
   transcribeAudio,
   type FlowContext,
   type Turn,
 } from "../../src/lib/conversation-core";
-import { bytesToBase64, base64ToBytes, decodeWav, resamplePcm16 } from "../../src/lib/audio-utils";
+import {
+  base64ToBytes,
+  bytesToBase64,
+  concatUint8Arrays,
+  decodeWav,
+  estimateMuLawEnergy,
+  resamplePcm16,
+} from "../../src/lib/audio-utils";
 import { mapDummyStatusToRunStatus, type DummyCallStatus } from "../../src/lib/dummy-phone";
+import { endTwilioCall } from "../../src/lib/twilio";
+import { verifyTwilioStreamToken } from "../../src/lib/twilio-stream-auth";
 
 const wrtc = ((wrtcModule as unknown as { default?: unknown }).default ?? wrtcModule) as {
   RTCPeerConnection: typeof RTCPeerConnection;
@@ -51,7 +62,7 @@ type HandsetRegistration = {
   socket: WebSocket;
 };
 
-type CallSession = {
+type DummyCallSession = {
   id: string;
   runId: string;
   number: string;
@@ -75,6 +86,55 @@ type CallSession = {
   ringTimeout: NodeJS.Timeout | null;
 };
 
+type TwilioStartMessage = {
+  event: "start";
+  start: {
+    callSid: string;
+    streamSid: string;
+    customParameters?: Record<string, string>;
+  };
+  streamSid: string;
+};
+
+type TwilioMediaMessage = {
+  event: "media";
+  media: {
+    payload: string;
+  };
+  streamSid: string;
+};
+
+type TwilioMarkMessage = {
+  event: "mark";
+  mark?: {
+    name?: string;
+  };
+  streamSid: string;
+};
+
+type TwilioStopMessage = {
+  event: "stop";
+  streamSid: string;
+};
+
+type TwilioSession = {
+  socket: WebSocket;
+  runId: string | null;
+  callSid: string | null;
+  streamSid: string | null;
+  flow: FlowContext | null;
+  history: Turn[];
+  listening: boolean;
+  processing: boolean;
+  pendingMark: string | null;
+  speechActive: boolean;
+  speechChunks: Uint8Array[];
+  speechFrameCount: number;
+  silenceFrames: number;
+  finalized: boolean;
+  tokenCallSid: string | null;
+};
+
 const PORT = Number(process.env.DUMMY_PHONE_MEDIA_PORT || 8788);
 const CALLER_LABEL = process.env.DUMMY_PHONE_CALLER_LABEL || "Stillwater Demo";
 const RING_TIMEOUT_MS = 30_000;
@@ -83,9 +143,13 @@ const VAD_SILENCE_MS = 800;
 const VAD_MAX_UTTERANCE_MS = 8000;
 const OUTBOUND_SAMPLE_RATE = 48_000;
 const OUTBOUND_FRAME_SIZE = 480;
+const TWILIO_SPEECH_ENERGY_THRESHOLD = 900;
+const TWILIO_MIN_SPEECH_FRAMES = 4;
+const TWILIO_SILENCE_FRAME_THRESHOLD = 15;
+const TWILIO_MAX_FRAMES_PER_UTTERANCE = 400;
 
 const handsetsByNumber = new Map<string, HandsetRegistration>();
-const callsById = new Map<string, CallSession>();
+const dummyCallsById = new Map<string, DummyCallSession>();
 
 const server = http.createServer(async (req, res) => {
   const method = req.method || "GET";
@@ -132,15 +196,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     const callId = crypto.randomUUID();
-    const call: CallSession = {
+    const call: DummyCallSession = {
       id: callId,
       runId,
       number,
-      flow: {
-        whoWeAre,
-        whatWeDo,
-        persona,
-      },
+      flow: { whoWeAre, whatWeDo, persona },
       callerLabel: CALLER_LABEL,
       handset,
       history: parseTranscriptText(run?.transcript ?? ""),
@@ -160,12 +220,12 @@ const server = http.createServer(async (req, res) => {
       ringTimeout: null,
     };
 
-    callsById.set(callId, call);
+    dummyCallsById.set(callId, call);
     call.ringTimeout = setTimeout(() => {
-      void endCall(call, "no-answer", "Call timed out before it was answered");
+      void endDummyCall(call, "no-answer", "Call timed out before it was answered");
     }, RING_TIMEOUT_MS);
 
-    await updateRun(call, "ringing", {
+    await updateDummyRun(call, "ringing", {
       call_transport: "dummy",
       dummy_call_id: callId,
       dummy_call_status: "ringing",
@@ -191,13 +251,13 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && /^\/calls\/[^/]+\/hangup$/.test(url.pathname)) {
     const [, , callId] = url.pathname.split("/");
-    const call = callsById.get(callId);
+    const call = dummyCallsById.get(callId);
     if (!call) {
       sendJson(res, 404, { error: "Call not found" });
       return;
     }
 
-    await endCall(
+    await endDummyCall(
       call,
       call.status === "in-progress" ? "completed" : "canceled",
       "Call ended by controller",
@@ -209,9 +269,10 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: "Not found" });
 });
 
-const wss = new WebSocketServer({ noServer: true });
+const handsetWss = new WebSocketServer({ noServer: true });
+const twilioWss = new WebSocketServer({ noServer: true });
 
-wss.on("connection", (socket, request, meta: { number: string; sessionId: string }) => {
+handsetWss.on("connection", (socket, _request, meta: { number: string; sessionId: string }) => {
   const registration: HandsetRegistration = {
     number: meta.number,
     sessionId: meta.sessionId,
@@ -239,13 +300,13 @@ wss.on("connection", (socket, request, meta: { number: string; sessionId: string
     if (!message || typeof message.type !== "string") return;
 
     const callId = typeof message.callId === "string" ? message.callId : null;
-    const call = callId ? callsById.get(callId) : null;
+    const call = callId ? dummyCallsById.get(callId) : null;
     if (!call || call.handset.sessionId !== registration.sessionId) return;
 
     if (message.type === "accept_call") {
-      clearRingTimeout(call);
+      clearDummyRingTimeout(call);
       call.status = "connecting";
-      await updateRun(call, "ringing", {
+      await updateDummyRun(call, "ringing", {
         dummy_call_status: "connecting",
         error: null,
       });
@@ -253,12 +314,16 @@ wss.on("connection", (socket, request, meta: { number: string; sessionId: string
     }
 
     if (message.type === "decline_call") {
-      await endCall(call, "canceled", "Call declined");
+      await endDummyCall(call, "canceled", "Call declined");
       return;
     }
 
     if (message.type === "hangup") {
-      await endCall(call, call.status === "in-progress" ? "completed" : "canceled", "Call ended");
+      await endDummyCall(
+        call,
+        call.status === "in-progress" ? "completed" : "canceled",
+        "Call ended",
+      );
       return;
     }
 
@@ -267,7 +332,7 @@ wss.on("connection", (socket, request, meta: { number: string; sessionId: string
     }
 
     if (message.type === "peer_offer" && message.sdp) {
-      await ensurePeerConnection(call);
+      await ensureDummyPeerConnection(call);
       await call.peerConnection?.setRemoteDescription(new wrtc.RTCSessionDescription(message.sdp));
       const answer = await call.peerConnection?.createAnswer();
       if (!answer || !call.peerConnection) return;
@@ -295,36 +360,348 @@ wss.on("connection", (socket, request, meta: { number: string; sessionId: string
       handsetsByNumber.delete(registration.number);
     }
 
-    for (const call of callsById.values()) {
+    for (const call of dummyCallsById.values()) {
       if (call.handset.sessionId !== registration.sessionId || call.ended) continue;
       const nextStatus: DummyCallStatus = call.status === "in-progress" ? "failed" : "no-answer";
-      void endCall(call, nextStatus, "Handset disconnected");
+      void endDummyCall(call, nextStatus, "Handset disconnected");
     }
+  });
+});
+
+twilioWss.on("connection", (socket) => {
+  const session: TwilioSession = {
+    socket,
+    runId: null,
+    callSid: null,
+    streamSid: null,
+    flow: null,
+    history: [],
+    listening: false,
+    processing: false,
+    pendingMark: null,
+    speechActive: false,
+    speechChunks: [],
+    speechFrameCount: 0,
+    silenceFrames: 0,
+    finalized: false,
+    tokenCallSid: null,
+  };
+
+  socket.on("message", (raw) => {
+    void handleTwilioSocketMessage(session, raw);
+  });
+
+  socket.on("close", () => {
+    void finalizeTwilioSession(session, null, null);
+  });
+
+  socket.on("error", (error) => {
+    void failTwilioSession(
+      session,
+      error instanceof Error ? error.message : "Twilio websocket error",
+    );
   });
 });
 
 server.on("upgrade", (request, socket, head) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-  if (url.pathname !== "/ws/phone-dummy") {
-    socket.destroy();
+
+  if (url.pathname === "/ws/phone-dummy") {
+    const number = url.searchParams.get("number");
+    const sessionId = url.searchParams.get("sessionId");
+    if (!number || !sessionId) {
+      socket.destroy();
+      return;
+    }
+
+    handsetWss.handleUpgrade(request, socket, head, (ws) => {
+      handsetWss.emit("connection", ws, request, { number, sessionId });
+    });
     return;
   }
 
-  const number = url.searchParams.get("number");
-  const sessionId = url.searchParams.get("sessionId");
-  if (!number || !sessionId) {
-    socket.destroy();
+  if (url.pathname === "/twilio/media-stream") {
+    twilioWss.handleUpgrade(request, socket, head, (ws) => {
+      twilioWss.emit("connection", ws, request);
+    });
     return;
   }
 
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit("connection", ws, request, { number, sessionId });
-  });
+  socket.destroy();
 });
 
 server.listen(PORT, () => {
   console.log(`[dummy-phone-media] listening on http://localhost:${PORT}`);
 });
+
+async function handleTwilioSocketMessage(session: TwilioSession, raw: WebSocket.RawData) {
+  const message = parseMessage(raw) as
+    | TwilioStartMessage
+    | TwilioMediaMessage
+    | TwilioMarkMessage
+    | TwilioStopMessage
+    | null;
+
+  if (!message || typeof message.event !== "string") return;
+
+  try {
+    switch (message.event) {
+      case "start":
+        await handleTwilioStartMessage(session, message);
+        break;
+      case "media":
+        await handleTwilioMediaMessage(session, message);
+        break;
+      case "mark":
+        handleTwilioMarkMessage(session, message);
+        break;
+      case "stop":
+        await handleTwilioStopMessage(session);
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    console.error("[dummy-phone-media] twilio stream failed", error);
+    await failTwilioSession(
+      session,
+      error instanceof Error ? error.message : "Twilio media stream failed",
+    );
+  }
+}
+
+async function handleTwilioStartMessage(session: TwilioSession, message: TwilioStartMessage) {
+  const runId = message.start.customParameters?.runId ?? null;
+  const streamToken = message.start.customParameters?.streamToken ?? null;
+  if (!runId || !streamToken) {
+    throw new Error("Missing Twilio stream parameters");
+  }
+
+  const tokenPayload = verifyTwilioStreamToken(streamToken);
+  if (tokenPayload.runId !== runId) {
+    throw new Error("Twilio stream token run mismatch");
+  }
+  if (tokenPayload.callSid && tokenPayload.callSid !== message.start.callSid) {
+    throw new Error("Twilio stream token call mismatch");
+  }
+
+  const { data: run, error: runError } = await supabaseAdmin
+    .from("runs")
+    .select("flow_id, transcript, status, call_transport")
+    .eq("id", runId)
+    .maybeSingle();
+
+  if (runError || !run) {
+    throw new Error(runError?.message ?? "Run not found");
+  }
+  if (run.call_transport && run.call_transport !== "twilio") {
+    throw new Error("Run is not configured for Twilio transport");
+  }
+  if (["completed", "failed", "canceled", "no_answer"].includes(run.status)) {
+    throw new Error(`Run already finalized with status ${run.status}`);
+  }
+
+  const { data: flow, error: flowError } = await supabaseAdmin
+    .from("flows")
+    .select("who_we_are, what_we_do, agent_persona")
+    .eq("id", run.flow_id)
+    .maybeSingle();
+
+  if (flowError || !flow) {
+    throw new Error(flowError?.message ?? "Flow not found");
+  }
+
+  session.runId = runId;
+  session.callSid = message.start.callSid;
+  session.streamSid = message.start.streamSid;
+  session.tokenCallSid = tokenPayload.callSid ?? null;
+  session.flow = {
+    whoWeAre: flow.who_we_are,
+    whatWeDo: flow.what_we_do,
+    persona: flow.agent_persona,
+  };
+  session.history = parseTranscriptText(run.transcript);
+
+  await supabaseAdmin
+    .from("runs")
+    .update({
+      call_transport: "twilio",
+      twilio_call_sid: message.start.callSid,
+      twilio_stream_sid: message.start.streamSid,
+      twilio_call_status: "in-progress",
+      status: "in_progress",
+      error: null,
+    })
+    .eq("id", runId);
+
+  if (session.history.length === 0) {
+    const greeting = await generateAgentReply({
+      ...session.flow,
+      history: [],
+      nextRole: "assistant",
+    });
+    await appendTwilioTurn(session, { role: "assistant", content: greeting });
+    await playTwilioText(session, greeting);
+  } else {
+    session.listening = true;
+  }
+}
+
+async function handleTwilioMediaMessage(session: TwilioSession, message: TwilioMediaMessage) {
+  if (!session.runId || !session.listening || session.processing) return;
+
+  const bytes = base64ToBytes(message.media.payload);
+  const energy = estimateMuLawEnergy(bytes);
+
+  if (session.speechActive) {
+    session.speechChunks.push(bytes);
+    session.speechFrameCount += 1;
+
+    if (energy > TWILIO_SPEECH_ENERGY_THRESHOLD) {
+      session.silenceFrames = 0;
+    } else {
+      session.silenceFrames += 1;
+    }
+
+    if (
+      session.speechFrameCount >= TWILIO_MAX_FRAMES_PER_UTTERANCE ||
+      (session.speechFrameCount >= TWILIO_MIN_SPEECH_FRAMES &&
+        session.silenceFrames >= TWILIO_SILENCE_FRAME_THRESHOLD)
+    ) {
+      const utterance = concatUint8Arrays(session.speechChunks);
+      resetTwilioSpeechBuffer(session);
+      session.processing = true;
+      session.listening = false;
+      await processTwilioUtterance(session, utterance);
+    }
+
+    return;
+  }
+
+  if (energy > TWILIO_SPEECH_ENERGY_THRESHOLD) {
+    session.speechActive = true;
+    session.speechChunks = [bytes];
+    session.speechFrameCount = 1;
+    session.silenceFrames = 0;
+  }
+}
+
+function handleTwilioMarkMessage(session: TwilioSession, message: TwilioMarkMessage) {
+  if (!session.pendingMark || message.mark?.name !== session.pendingMark) return;
+  session.pendingMark = null;
+  session.processing = false;
+  session.listening = true;
+}
+
+async function handleTwilioStopMessage(session: TwilioSession) {
+  await finalizeTwilioSession(session, session.finalized ? null : "completed", null);
+}
+
+async function processTwilioUtterance(session: TwilioSession, utterance: Uint8Array) {
+  try {
+    const { transcript } = await transcribeAudio({
+      audioBase64: rawMulawBytesToGradiumWavBase64(utterance),
+    });
+
+    if (!transcript.trim()) {
+      session.processing = false;
+      session.listening = true;
+      return;
+    }
+
+    await appendTwilioTurn(session, { role: "user", content: transcript });
+    const reply = await generateAgentReply({
+      ...(session.flow as FlowContext),
+      history: session.history,
+      nextRole: "assistant",
+    });
+    await appendTwilioTurn(session, { role: "assistant", content: reply });
+    await playTwilioText(session, reply);
+  } catch (error) {
+    await failTwilioSession(
+      session,
+      error instanceof Error ? error.message : "Provider failure during Twilio conversation",
+    );
+  }
+}
+
+async function appendTwilioTurn(session: TwilioSession, turn: Turn) {
+  if (!session.runId) return;
+  session.history = [...session.history, turn];
+  await supabaseAdmin
+    .from("runs")
+    .update({ transcript: buildTranscriptText(session.history) })
+    .eq("id", session.runId);
+}
+
+async function playTwilioText(session: TwilioSession, text: string) {
+  if (!session.streamSid || session.socket.readyState !== WebSocket.OPEN) return;
+
+  const { audioBase64 } = await synthesizeSpeech({ text });
+  const payload = gradiumWavToTwilioMulawBase64(audioBase64);
+  const markName = `mark-${Date.now()}`;
+
+  session.pendingMark = markName;
+  session.listening = false;
+
+  send(session.socket, {
+    event: "media",
+    streamSid: session.streamSid,
+    media: {
+      payload,
+    },
+  });
+  send(session.socket, {
+    event: "mark",
+    streamSid: session.streamSid,
+    mark: {
+      name: markName,
+    },
+  });
+}
+
+async function finalizeTwilioSession(
+  session: TwilioSession,
+  nextStatus: string | null,
+  error: string | null,
+) {
+  if (!session.runId || session.finalized) return;
+  session.finalized = true;
+
+  const patch: Record<string, string | null> = {};
+  if (nextStatus) {
+    patch.status = nextStatus;
+    patch.twilio_call_status =
+      nextStatus === "in_progress" ? "in-progress" : nextStatus.replaceAll("_", "-");
+  }
+  if (error) {
+    patch.error = error;
+  }
+  if (nextStatus && ["completed", "failed", "busy", "no_answer", "canceled"].includes(nextStatus)) {
+    patch.completed_at = new Date().toISOString();
+  }
+
+  await supabaseAdmin.from("runs").update(patch).eq("id", session.runId);
+}
+
+async function failTwilioSession(session: TwilioSession, message: string) {
+  await finalizeTwilioSession(session, "failed", message);
+  if (session.callSid) {
+    await endTwilioCall(session.callSid);
+  }
+  try {
+    session.socket.close(1011, message.slice(0, 120));
+  } catch {
+    // ignore close failures
+  }
+}
+
+function resetTwilioSpeechBuffer(session: TwilioSession) {
+  session.speechActive = false;
+  session.speechChunks = [];
+  session.speechFrameCount = 0;
+  session.silenceFrames = 0;
+}
 
 function parseMessage(raw: WebSocket.RawData) {
   try {
@@ -334,7 +711,7 @@ function parseMessage(raw: WebSocket.RawData) {
   }
 }
 
-async function ensurePeerConnection(call: CallSession) {
+async function ensureDummyPeerConnection(call: DummyCallSession) {
   if (call.peerConnection) return;
 
   const peerConnection = new wrtc.RTCPeerConnection({
@@ -357,7 +734,7 @@ async function ensurePeerConnection(call: CallSession) {
     if (event.track.kind !== "audio") return;
     const sink = new wrtc.nonstandard.RTCAudioSink(event.track);
     sink.ondata = (data) => {
-      void handleIncomingAudio(call, data);
+      void handleDummyIncomingAudio(call, data);
     };
     call.audioSink = sink;
   };
@@ -365,18 +742,18 @@ async function ensurePeerConnection(call: CallSession) {
   peerConnection.onconnectionstatechange = () => {
     if (peerConnection.connectionState === "connected" && call.status !== "in-progress") {
       call.status = "in-progress";
-      void updateRun(call, "in-progress", {
+      void updateDummyRun(call, "in-progress", {
         dummy_call_status: "in-progress",
         error: null,
       });
-      void startGreeting(call);
+      void startDummyGreeting(call);
     }
 
     if (
       ["failed", "closed", "disconnected"].includes(peerConnection.connectionState) &&
       !call.ended
     ) {
-      void endCall(
+      void endDummyCall(
         call,
         call.status === "in-progress" ? "failed" : "no-answer",
         "WebRTC connection ended",
@@ -389,8 +766,8 @@ async function ensurePeerConnection(call: CallSession) {
   call.audioTrack = audioTrack;
 }
 
-async function handleIncomingAudio(
-  call: CallSession,
+async function handleDummyIncomingAudio(
+  call: DummyCallSession,
   data: {
     samples: Int16Array;
     sampleRate: number;
@@ -422,7 +799,7 @@ async function handleIncomingAudio(
   }
 
   if (call.awaitingSilenceMs >= VAD_SILENCE_MS || call.utteranceMs >= VAD_MAX_UTTERANCE_MS) {
-    const utterance = concatChunks(call.captureChunks);
+    const utterance = concatInt16Chunks(call.captureChunks);
     call.captureChunks = [];
     call.awaitingSilenceMs = 0;
     call.utteranceMs = 0;
@@ -441,18 +818,18 @@ async function handleIncomingAudio(
 
       if (!transcript.trim()) return;
 
-      await appendTurn(call, { role: "user", content: transcript });
+      await appendDummyTurn(call, { role: "user", content: transcript });
       const reply = await generateAgentReply({
         ...call.flow,
         history: call.history,
         nextRole: "assistant",
       });
-      await appendTurn(call, { role: "assistant", content: reply });
+      await appendDummyTurn(call, { role: "assistant", content: reply });
       const speech = await synthesizeSpeech({ text: reply });
-      await streamAudioToCall(call, speech.audioBase64);
+      await streamAudioToDummyCall(call, speech.audioBase64);
     } catch (error) {
       console.error("[dummy-phone-media] turn failed", error);
-      await endCall(
+      await endDummyCall(
         call,
         "failed",
         error instanceof Error ? error.message : "Turn processing failed",
@@ -463,7 +840,7 @@ async function handleIncomingAudio(
   }
 }
 
-async function startGreeting(call: CallSession) {
+async function startDummyGreeting(call: DummyCallSession) {
   if (call.greetingStarted || call.ended) return;
   call.greetingStarted = true;
 
@@ -473,16 +850,16 @@ async function startGreeting(call: CallSession) {
       history: call.history,
       nextRole: "assistant",
     });
-    await appendTurn(call, { role: "assistant", content: greeting });
+    await appendDummyTurn(call, { role: "assistant", content: greeting });
     const speech = await synthesizeSpeech({ text: greeting });
-    await streamAudioToCall(call, speech.audioBase64);
+    await streamAudioToDummyCall(call, speech.audioBase64);
   } catch (error) {
     console.error("[dummy-phone-media] greeting failed", error);
-    await endCall(call, "failed", error instanceof Error ? error.message : "Greeting failed");
+    await endDummyCall(call, "failed", error instanceof Error ? error.message : "Greeting failed");
   }
 }
 
-async function appendTurn(call: CallSession, turn: Turn) {
+async function appendDummyTurn(call: DummyCallSession, turn: Turn) {
   call.history = [...call.history, turn];
   await supabaseAdmin
     .from("runs")
@@ -490,7 +867,7 @@ async function appendTurn(call: CallSession, turn: Turn) {
     .eq("id", call.runId);
 }
 
-async function streamAudioToCall(call: CallSession, audioBase64: string) {
+async function streamAudioToDummyCall(call: DummyCallSession, audioBase64: string) {
   if (!call.audioSource || call.ended) return;
 
   call.assistantSpeaking = true;
@@ -524,11 +901,11 @@ async function streamAudioToCall(call: CallSession, audioBase64: string) {
   call.assistantSpeaking = false;
 }
 
-async function endCall(call: CallSession, status: DummyCallStatus, reason: string) {
+async function endDummyCall(call: DummyCallSession, status: DummyCallStatus, reason: string) {
   if (call.ended) return;
   call.ended = true;
   call.status = status;
-  clearRingTimeout(call);
+  clearDummyRingTimeout(call);
 
   call.audioSink?.stop();
   call.audioSink = null;
@@ -538,18 +915,17 @@ async function endCall(call: CallSession, status: DummyCallStatus, reason: strin
   call.peerConnection = null;
   call.audioSource = null;
 
-  callsById.delete(call.id);
+  dummyCallsById.delete(call.id);
 
   const patch: Record<string, string | null> = {
     dummy_call_status: status,
     error: status === "completed" ? null : reason,
   };
-
   if (["completed", "failed", "canceled", "no-answer"].includes(status)) {
     patch.completed_at = new Date().toISOString();
   }
 
-  await updateRun(call, status, patch);
+  await updateDummyRun(call, status, patch);
 
   if (call.handset.socket.readyState === WebSocket.OPEN) {
     send(call.handset.socket, {
@@ -560,8 +936,8 @@ async function endCall(call: CallSession, status: DummyCallStatus, reason: strin
   }
 }
 
-async function updateRun(
-  call: CallSession,
+async function updateDummyRun(
+  call: DummyCallSession,
   status: DummyCallStatus,
   patch: Record<string, string | null>,
 ) {
@@ -574,7 +950,7 @@ async function updateRun(
     .eq("id", call.runId);
 }
 
-function clearRingTimeout(call: CallSession) {
+function clearDummyRingTimeout(call: DummyCallSession) {
   if (call.ringTimeout) {
     clearTimeout(call.ringTimeout);
     call.ringTimeout = null;
@@ -626,7 +1002,7 @@ function estimateEnergy(samples: Int16Array) {
   return total / samples.length;
 }
 
-function concatChunks(chunks: Int16Array[]) {
+function concatInt16Chunks(chunks: Int16Array[]) {
   const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const merged = new Int16Array(totalLength);
   let offset = 0;

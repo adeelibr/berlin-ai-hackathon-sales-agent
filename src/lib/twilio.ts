@@ -1,6 +1,7 @@
 import twilio from "twilio";
 
-import { getCallTargetNumber } from "@/lib/call-config";
+import { getCallTargetNumber, getTwilioMediaStreamWebSocketBaseUrl } from "@/lib/call-config";
+import { createTwilioStreamToken } from "@/lib/twilio-stream-auth";
 import { logTwilio, maskAccountSid, maskPhoneNumber } from "@/lib/twilio-logging";
 
 const TERMINAL_TWILIO_STATUSES = new Set(["completed", "busy", "failed", "no-answer", "canceled"]);
@@ -18,7 +19,7 @@ export function getTwilioConfig() {
     fromNumber,
     toNumber,
     publicBaseUrl,
-    mediaStreamUrl: toWebSocketUrl(publicBaseUrl),
+    mediaStreamUrl: getTwilioMediaStreamWebSocketBaseUrl(),
   };
 }
 
@@ -128,19 +129,25 @@ export async function endTwilioCall(callSid: string) {
   });
 }
 
-export function buildTwimlStreamResponse(runId: string) {
+export function buildTwimlStreamResponse(data: { runId: string; callSid?: string | null }) {
   const { mediaStreamUrl } = getTwilioConfig();
+  const streamToken = createTwilioStreamToken({
+    runId: data.runId,
+    callSid: data.callSid ?? null,
+  });
   logTwilio("info", "twiml:build", {
-    runId,
-    mediaStreamUrl: `${mediaStreamUrl}/api/twilio/media-stream`,
+    runId: data.runId,
+    callSid: data.callSid ?? null,
+    mediaStreamUrl: `${mediaStreamUrl}/twilio/media-stream`,
   });
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<Response>",
     "  <Connect>",
-    `    <Stream url="${escapeXml(`${mediaStreamUrl}/api/twilio/media-stream`)}">`,
-    `      <Parameter name="runId" value="${escapeXml(runId)}" />`,
+    `    <Stream url="${escapeXml(`${mediaStreamUrl}/twilio/media-stream`)}">`,
+    `      <Parameter name="runId" value="${escapeXml(data.runId)}" />`,
+    `      <Parameter name="streamToken" value="${escapeXml(streamToken)}" />`,
     "    </Stream>",
     "  </Connect>",
     "</Response>",
@@ -217,12 +224,6 @@ function getRequiredEnv(name: string) {
     throw new Error(`${name} not configured`);
   }
   return value;
-}
-
-function toWebSocketUrl(baseUrl: string) {
-  const url = new URL(baseUrl);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  return url.toString().replace(/\/$/, "");
 }
 
 function encodeBase64(value: string) {
