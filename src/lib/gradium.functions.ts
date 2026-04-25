@@ -259,7 +259,9 @@ export const generateReport = createServerFn({ method: "POST" })
     const json = await res.json();
     const call = json?.choices?.[0]?.message?.tool_calls?.[0];
     const argsStr: string = call?.function?.arguments ?? "{}";
-    let report: Record<string, unknown>;
-    try { report = JSON.parse(argsStr); } catch { throw new Error("AI returned malformed report"); }
-    return { report };
+    // Round-trip through JSON to ensure plain serializable shape
+    let reportJson: string;
+    try { reportJson = JSON.stringify(JSON.parse(argsStr)); }
+    catch { throw new Error("AI returned malformed report"); }
+    return { reportJson };
   });
