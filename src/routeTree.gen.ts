@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
 import { Route as FlowsFlowIdRouteImport } from './routes/flows.$flowId'
+import { Route as ConversationsRunIdRouteImport } from './routes/conversations.$runId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -40,11 +41,17 @@ const FlowsFlowIdRoute = FlowsFlowIdRouteImport.update({
   path: '/flows/$flowId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConversationsRunIdRoute = ConversationsRunIdRouteImport.update({
+  id: '/conversations/$runId',
+  path: '/conversations/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/runs/$runId': typeof RunsRunIdRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/runs/$runId': typeof RunsRunIdRoute
 }
@@ -60,19 +68,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/runs/$runId': typeof RunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login' | '/flows/$flowId' | '/runs/$runId'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/conversations/$runId'
+    | '/flows/$flowId'
+    | '/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login' | '/flows/$flowId' | '/runs/$runId'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/conversations/$runId'
+    | '/flows/$flowId'
+    | '/runs/$runId'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/login'
+    | '/conversations/$runId'
     | '/flows/$flowId'
     | '/runs/$runId'
   fileRoutesById: FileRoutesById
@@ -81,6 +103,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  ConversationsRunIdRoute: typeof ConversationsRunIdRoute
   FlowsFlowIdRoute: typeof FlowsFlowIdRoute
   RunsRunIdRoute: typeof RunsRunIdRoute
 }
@@ -122,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FlowsFlowIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/conversations/$runId': {
+      id: '/conversations/$runId'
+      path: '/conversations/$runId'
+      fullPath: '/conversations/$runId'
+      preLoaderRoute: typeof ConversationsRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -129,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  ConversationsRunIdRoute: ConversationsRunIdRoute,
   FlowsFlowIdRoute: FlowsFlowIdRoute,
   RunsRunIdRoute: RunsRunIdRoute,
 }

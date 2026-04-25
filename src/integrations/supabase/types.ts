@@ -16,44 +16,32 @@ export type Database = {
     Tables: {
       flows: {
         Row: {
-          ac_post_enhance: boolean
+          agent_persona: string
           created_at: string
-          hermozi_knowledge: string
           id: string
           name: string
-          phone_numbers: string
-          telli_agent_id: string
           updated_at: string
           user_id: string
-          voice: string
           what_we_do: string
           who_we_are: string
         }
         Insert: {
-          ac_post_enhance?: boolean
+          agent_persona?: string
           created_at?: string
-          hermozi_knowledge?: string
           id?: string
           name?: string
-          phone_numbers?: string
-          telli_agent_id?: string
           updated_at?: string
           user_id: string
-          voice?: string
           what_we_do?: string
           who_we_are?: string
         }
         Update: {
-          ac_post_enhance?: boolean
+          agent_persona?: string
           created_at?: string
-          hermozi_knowledge?: string
           id?: string
           name?: string
-          phone_numbers?: string
-          telli_agent_id?: string
           updated_at?: string
           user_id?: string
-          voice?: string
           what_we_do?: string
           who_we_are?: string
         }
@@ -82,50 +70,32 @@ export type Database = {
       }
       runs: {
         Row: {
-          cleaned_recording_url: string | null
           completed_at: string | null
-          duration_seconds: number | null
           error: string | null
           flow_id: string
-          generated_script: string | null
           id: string
-          phone_number: string
-          recording_url: string | null
           started_at: string
           status: string
-          telli_call_id: string | null
           transcript: string | null
           user_id: string
         }
         Insert: {
-          cleaned_recording_url?: string | null
           completed_at?: string | null
-          duration_seconds?: number | null
           error?: string | null
           flow_id: string
-          generated_script?: string | null
           id?: string
-          phone_number: string
-          recording_url?: string | null
           started_at?: string
           status?: string
-          telli_call_id?: string | null
           transcript?: string | null
           user_id: string
         }
         Update: {
-          cleaned_recording_url?: string | null
           completed_at?: string | null
-          duration_seconds?: number | null
           error?: string | null
           flow_id?: string
-          generated_script?: string | null
           id?: string
-          phone_number?: string
-          recording_url?: string | null
           started_at?: string
           status?: string
-          telli_call_id?: string | null
           transcript?: string | null
           user_id?: string
         }
