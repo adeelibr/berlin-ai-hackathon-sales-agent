@@ -14,7 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      flows: {
+        Row: {
+          ac_pre_enhance: boolean
+          created_at: string
+          hermozi_knowledge: string
+          id: string
+          name: string
+          phone_numbers: string
+          updated_at: string
+          user_id: string
+          voice: string
+          what_we_do: string
+          who_we_are: string
+        }
+        Insert: {
+          ac_pre_enhance?: boolean
+          created_at?: string
+          hermozi_knowledge?: string
+          id?: string
+          name?: string
+          phone_numbers?: string
+          updated_at?: string
+          user_id: string
+          voice?: string
+          what_we_do?: string
+          who_we_are?: string
+        }
+        Update: {
+          ac_pre_enhance?: boolean
+          created_at?: string
+          hermozi_knowledge?: string
+          id?: string
+          name?: string
+          phone_numbers?: string
+          updated_at?: string
+          user_id?: string
+          voice?: string
+          what_we_do?: string
+          who_we_are?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      runs: {
+        Row: {
+          cleaned_recording_url: string | null
+          completed_at: string | null
+          duration_seconds: number | null
+          error: string | null
+          flow_id: string
+          generated_script: string | null
+          id: string
+          phone_number: string
+          recording_url: string | null
+          started_at: string
+          status: string
+          telli_call_id: string | null
+          transcript: string | null
+          user_id: string
+        }
+        Insert: {
+          cleaned_recording_url?: string | null
+          completed_at?: string | null
+          duration_seconds?: number | null
+          error?: string | null
+          flow_id: string
+          generated_script?: string | null
+          id?: string
+          phone_number: string
+          recording_url?: string | null
+          started_at?: string
+          status?: string
+          telli_call_id?: string | null
+          transcript?: string | null
+          user_id: string
+        }
+        Update: {
+          cleaned_recording_url?: string | null
+          completed_at?: string | null
+          duration_seconds?: number | null
+          error?: string | null
+          flow_id?: string
+          generated_script?: string | null
+          id?: string
+          phone_number?: string
+          recording_url?: string | null
+          started_at?: string
+          status?: string
+          telli_call_id?: string | null
+          transcript?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runs_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
