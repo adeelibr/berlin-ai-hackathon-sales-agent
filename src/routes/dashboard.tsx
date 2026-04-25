@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell, AuthGuard } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { Plus, Workflow, Clock, Mic } from "lucide-react";
+import { Plus, Workflow, Clock, Mic, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
@@ -61,6 +61,27 @@ function Dashboard() {
     navigate({ to: "/flows/$flowId", params: { flowId: data.id } });
   };
 
+  const deleteFlow = async (e: React.MouseEvent, flowId: string, name: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete "${name}" and all its conversations? This cannot be undone.`)) return;
+    await supabase.from("runs").delete().eq("flow_id", flowId);
+    const { error } = await supabase.from("flows").delete().eq("id", flowId);
+    if (error) { toast.error(error.message); return; }
+    setFlows((prev) => prev.filter((f) => f.id !== flowId));
+    setRuns((prev) => prev.filter((r) => r.flow_id !== flowId));
+    toast.success("Flow deleted");
+  };
+
+  const deleteRun = async (e: React.MouseEvent, runId: string) => {
+    e.stopPropagation();
+    if (!confirm("Delete this conversation transcript?")) return;
+    const { error } = await supabase.from("runs").delete().eq("id", runId);
+    if (error) { toast.error(error.message); return; }
+    setRuns((prev) => prev.filter((r) => r.id !== runId));
+    toast.success("Conversation deleted");
+  };
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-12">
@@ -88,9 +109,18 @@ function Dashboard() {
                 style={{ boxShadow: "var(--shadow-zen)" }}>
                 <div className="flex items-start justify-between">
                   <Workflow className="h-5 w-5 text-muted-foreground transition-colors group-hover:text-accent" />
-                  <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                    {new Date(flow.updated_at).toLocaleDateString()}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {new Date(flow.updated_at).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={(e) => deleteFlow(e, flow.id, flow.name)}
+                      aria-label="Delete flow"
+                      className="rounded p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <h3 className="mt-6 font-display text-lg text-foreground">{flow.name}</h3>
                 <p className="mt-2 text-xs text-muted-foreground"><Mic className="mr-1 inline h-3 w-3" /> Voice agent</p>
@@ -114,6 +144,7 @@ function Dashboard() {
                     <th className="px-6 py-3 font-normal">Run</th>
                     <th className="px-6 py-3 font-normal">Status</th>
                     <th className="px-6 py-3 font-normal">When</th>
+                    <th className="px-6 py-3 font-normal"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -128,6 +159,15 @@ function Dashboard() {
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
                         <Clock className="mr-1 inline h-3 w-3" />{new Date(r.started_at).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={(e) => deleteRun(e, r.id)}
+                          aria-label="Delete conversation"
+                          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
