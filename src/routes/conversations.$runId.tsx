@@ -156,8 +156,8 @@ function Conversation() {
 
     // Encode to 16-bit PCM WAV
     const samples = rendered.getChannelData(0);
-    const wavBytes = encodeWav(samples, targetRate);
-    return new Blob([wavBytes], { type: "audio/wav" });
+    const wavBuffer = encodeWav(samples, targetRate);
+    return new Blob([wavBuffer], { type: "audio/wav" });
   };
 
   const stopAndSend = async () => {
@@ -287,7 +287,7 @@ function Conversation() {
 }
 
 // 16-bit PCM mono WAV encoder
-function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array {
+function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
   const bytesPerSample = 2;
   const blockAlign = bytesPerSample;
   const byteRate = sampleRate * blockAlign;
@@ -307,5 +307,5 @@ function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array {
     view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     offset += 2;
   }
-  return new Uint8Array(buffer);
+  return buffer;
 }
