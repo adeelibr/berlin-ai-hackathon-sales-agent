@@ -74,6 +74,8 @@ export type Database = {
           error: string | null
           flow_id: string
           id: string
+          report: Json | null
+          report_generated_at: string | null
           started_at: string
           status: string
           transcript: string | null
@@ -84,6 +86,8 @@ export type Database = {
           error?: string | null
           flow_id: string
           id?: string
+          report?: Json | null
+          report_generated_at?: string | null
           started_at?: string
           status?: string
           transcript?: string | null
@@ -94,6 +98,8 @@ export type Database = {
           error?: string | null
           flow_id?: string
           id?: string
+          report?: Json | null
+          report_generated_at?: string | null
           started_at?: string
           status?: string
           transcript?: string | null
