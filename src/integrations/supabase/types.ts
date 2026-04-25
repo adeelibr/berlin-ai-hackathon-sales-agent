@@ -16,12 +16,13 @@ export type Database = {
     Tables: {
       flows: {
         Row: {
-          ac_pre_enhance: boolean
+          ac_post_enhance: boolean
           created_at: string
           hermozi_knowledge: string
           id: string
           name: string
           phone_numbers: string
+          telli_agent_id: string
           updated_at: string
           user_id: string
           voice: string
@@ -29,12 +30,13 @@ export type Database = {
           who_we_are: string
         }
         Insert: {
-          ac_pre_enhance?: boolean
+          ac_post_enhance?: boolean
           created_at?: string
           hermozi_knowledge?: string
           id?: string
           name?: string
           phone_numbers?: string
+          telli_agent_id?: string
           updated_at?: string
           user_id: string
           voice?: string
@@ -42,12 +44,13 @@ export type Database = {
           who_we_are?: string
         }
         Update: {
-          ac_pre_enhance?: boolean
+          ac_post_enhance?: boolean
           created_at?: string
           hermozi_knowledge?: string
           id?: string
           name?: string
           phone_numbers?: string
+          telli_agent_id?: string
           updated_at?: string
           user_id?: string
           voice?: string
