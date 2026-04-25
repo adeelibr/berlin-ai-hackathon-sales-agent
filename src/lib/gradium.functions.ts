@@ -55,12 +55,17 @@ export const gradiumSTT = createServerFn({ method: "POST" })
       // Cloudflare Workers WebSocket: pass headers via init
       let ws: WebSocket;
       try {
-        ws = new WebSocket("wss://api.gradium.ai/api/speech/asr", {
-          // @ts-expect-error — Cloudflare Workers extension
+        // Cloudflare Workers' WebSocket constructor accepts an init object
+        // with a `headers` field — TS doesn't know about it.
+        const WSCtor = WebSocket as unknown as new (
+          url: string,
+          init?: { headers?: Record<string, string> }
+        ) => WebSocket;
+        ws = new WSCtor("wss://api.gradium.ai/api/speech/asr", {
           headers: { "x-api-key": apiKey },
-        } as never);
+        });
       } catch (e) {
-        reject(e);
+        reject(e as Error);
         return;
       }
 
