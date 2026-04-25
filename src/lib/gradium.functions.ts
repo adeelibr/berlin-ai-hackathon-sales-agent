@@ -183,3 +183,83 @@ Rules:
     const text: string = json?.choices?.[0]?.message?.content?.trim?.() ?? "";
     return { text };
   });
+
+/**
+ * Generate a structured sales-readable report from a conversation transcript.
+ * Uses Lovable AI (Gemini) with tool calling for guaranteed JSON shape.
+ */
+export const generateReport = createServerFn({ method: "POST" })
+  .inputValidator((data: { transcript: string }) => data)
+  .handler(async ({ data }) => {
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+    if (!data.transcript?.trim()) throw new Error("Transcript is empty");
+
+    const system = `You are a senior sales analyst. You are given a transcript of a spoken conversation between an AI agent and a prospect/customer. Produce a concise, structured report a Head of Sales can skim in 30 seconds. Be honest — if signal is weak, say so. Never invent facts not present in the transcript.`;
+
+    const userPrompt = `Transcript:\n\n${data.transcript}\n\nAnalyze this conversation and call the build_sales_report tool with the structured analysis.`;
+
+    const tool = {
+      type: "function",
+      function: {
+        name: "build_sales_report",
+        description: "Return a structured sales report for the conversation.",
+        parameters: {
+          type: "object",
+          properties: {
+            summary: { type: "string", description: "2-3 sentence executive summary of what happened in the call." },
+            sentiment: { type: "string", enum: ["positive", "neutral", "negative", "mixed"], description: "Overall prospect sentiment." },
+            intent_score: { type: "integer", minimum: 0, maximum: 10, description: "Buying intent from 0 (none) to 10 (ready to buy)." },
+            stage: { type: "string", enum: ["discovery", "qualification", "evaluation", "negotiation", "closed_won", "closed_lost", "no_fit", "unclear"], description: "Where in the sales process this conversation sits." },
+            key_topics: { type: "array", items: { type: "string" }, description: "3-6 main topics/themes discussed." },
+            pain_points: { type: "array", items: { type: "string" }, description: "Pain points or problems the prospect mentioned." },
+            objections: { type: "array", items: { type: "string" }, description: "Concerns/objections raised." },
+            opportunities: { type: "array", items: { type: "string" }, description: "Opportunities or buying signals." },
+            next_steps: { type: "array", items: { type: "string" }, description: "Recommended next actions for the sales team." },
+            risk_flags: { type: "array", items: { type: "string" }, description: "Red flags or risks worth flagging (e.g. budget unclear, ghosting risk)." },
+            quotable_moments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  quote: { type: "string" },
+                  why_it_matters: { type: "string" },
+                },
+                required: ["quote", "why_it_matters"],
+                additionalProperties: false,
+              },
+              description: "1-3 standout quotes from the prospect with brief context.",
+            },
+          },
+          required: ["summary", "sentiment", "intent_score", "stage", "key_topics", "pain_points", "objections", "opportunities", "next_steps", "risk_flags", "quotable_moments"],
+          additionalProperties: false,
+        },
+      },
+    };
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userPrompt },
+        ],
+        tools: [tool],
+        tool_choice: { type: "function", function: { name: "build_sales_report" } },
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error("Rate limited — try again shortly.");
+      if (res.status === 402) throw new Error("AI credits exhausted. Add funds in Settings → Workspace → Usage.");
+      const t = await res.text().catch(() => "");
+      throw new Error(`AI error ${res.status}: ${t.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    const call = json?.choices?.[0]?.message?.tool_calls?.[0];
+    const argsStr: string = call?.function?.arguments ?? "{}";
+    let report: Record<string, unknown>;
+    try { report = JSON.parse(argsStr); } catch { throw new Error("AI returned malformed report"); }
+    return { report };
+  });
