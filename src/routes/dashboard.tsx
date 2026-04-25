@@ -16,8 +16,13 @@ type Run = { id: string; flow_id: string; status: string; started_at: string };
 
 const STATUS_COLOR: Record<string, string> = {
   active: "bg-node-running text-foreground zen-pulse",
+  dialing: "bg-node-running text-foreground zen-pulse",
+  in_progress: "bg-node-running text-foreground zen-pulse",
   completed: "bg-node-done text-accent-foreground",
   failed: "bg-node-error text-destructive-foreground",
+  busy: "bg-node-error text-destructive-foreground",
+  no_answer: "bg-muted text-muted-foreground",
+  canceled: "bg-muted text-muted-foreground",
 };
 
 function Dashboard() {

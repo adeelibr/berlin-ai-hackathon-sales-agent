@@ -7,7 +7,7 @@ import { ArrowLeft, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useServerFn } from "@tanstack/react-start";
-import { generateReport } from "@/lib/gradium.functions";
+import { generateReport } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/runs/$runId")({
   component: () => <AuthGuard><RunDetail /></AuthGuard>,
@@ -31,6 +31,10 @@ type Run = {
   id: string; status: string; transcript: string | null;
   error: string | null; started_at: string; completed_at: string | null;
   report: SalesReport | null; report_generated_at: string | null;
+  target_phone_number: string | null;
+  twilio_call_sid: string | null;
+  twilio_stream_sid: string | null;
+  twilio_call_status: string | null;
 };
 
 function RunDetail() {
@@ -101,9 +105,21 @@ function RunDetail() {
               <h1 className="mt-2 font-display text-3xl">{new Date(run.started_at).toLocaleString()}</h1>
               <div className="mt-3 flex gap-3 text-sm text-muted-foreground">
                 <span>Status: <span className="text-foreground">{run.status}</span></span>
+                {run.target_phone_number && <span>To: <span className="text-foreground">{run.target_phone_number}</span></span>}
+                {run.twilio_call_status && <span>Twilio: <span className="text-foreground">{run.twilio_call_status}</span></span>}
               </div>
             </div>
             {run.error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{run.error}</div>}
+
+            {!run.transcript && !run.error && (
+              <div className="rounded-md border border-border/50 bg-card/40 p-4 text-sm text-muted-foreground">
+                {run.status === "dialing"
+                  ? "Launching outbound call..."
+                  : run.status === "in_progress"
+                    ? "Call is live. Waiting for transcript..."
+                    : "Waiting for Twilio call updates..."}
+              </div>
+            )}
 
             {run.transcript && (
               <div className="rounded-xl border border-border/60 bg-card/60 p-6">

@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Mic, Save, Building2, Bot } from "lucide-react";
+import { ArrowLeft, PhoneCall, Save, Building2, Bot } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { startTwilioCall } from "@/lib/twilio.functions";
 
 export const Route = createFileRoute("/flows/$flowId")({
   component: () => (
@@ -27,7 +29,7 @@ Never push. Be warm.`;
 const NODES = [
   { key: "context", label: "Who we are", icon: Building2, sub: "Company context" },
   { key: "agent", label: "Agent", icon: Bot, sub: "Persona & instructions" },
-  { key: "talk", label: "Talk", icon: Mic, sub: "Live conversation" },
+  { key: "talk", label: "Talk", icon: PhoneCall, sub: "Outbound phone call" },
 ] as const;
 
 type NodeKey = typeof NODES[number]["key"];
@@ -40,6 +42,7 @@ function FlowBuilder() {
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [selected, setSelected] = useState<NodeKey>("context");
+  const startCallFn = useServerFn(startTwilioCall);
 
   const [name, setName] = useState("");
   const [whoWeAre, setWhoWeAre] = useState("");
@@ -82,12 +85,19 @@ function FlowBuilder() {
     if (!ok) { setStarting(false); return; }
     const { data, error } = await supabase
       .from("runs")
-      .insert({ user_id: user!.id, flow_id: flowId, status: "active" })
+      .insert({ user_id: user!.id, flow_id: flowId, status: "dialing" })
       .select("id")
       .single();
-    setStarting(false);
     if (error || !data) { toast.error(error?.message ?? "Could not start"); return; }
-    navigate({ to: "/conversations/$runId", params: { runId: data.id } });
+    try {
+      await startCallFn({ data: { runId: data.id } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not place outbound call";
+      toast.error(message);
+    } finally {
+      setStarting(false);
+    }
+    navigate({ to: "/runs/$runId", params: { runId: data.id } });
   };
 
   if (loading) return <AppShell><div className="p-12 text-sm text-muted-foreground">Loading…</div></AppShell>;
@@ -104,7 +114,7 @@ function FlowBuilder() {
               <Save className="h-4 w-4" />{saving ? "Saving" : "Save"}
             </Button>
             <Button onClick={startConversation} disabled={starting} size="sm">
-              <Mic className="h-4 w-4" />{starting ? "Starting" : "Start talking"}
+              <PhoneCall className="h-4 w-4" />{starting ? "Dialing" : "Start call"}
             </Button>
           </div>
         </div>
@@ -168,10 +178,10 @@ function FlowBuilder() {
               <div className="space-y-4">
                 <h3 className="font-display text-lg">Talk</h3>
                 <p className="text-sm text-muted-foreground">
-                  When you're ready, hit <span className="font-medium text-foreground">Start talking</span>. We'll open your mic, the agent will speak first using Gradium voice, and we'll record the full transcript to your dashboard.
+                  When you're ready, hit <span className="font-medium text-foreground">Start call</span>. The app will place an outbound phone call to the fixed number configured in your environment, and the agent will carry the conversation over Twilio.
                 </p>
                 <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                  Voice: <span className="font-mono text-foreground">Emma</span> · Powered by <span className="text-foreground">Gradium</span>
+                  Transport: <span className="font-mono text-foreground">Twilio</span> · Voice + speech: <span className="text-foreground">Gradium</span> · Replies: <span className="text-foreground">Gemini</span>
                 </div>
               </div>
             )}

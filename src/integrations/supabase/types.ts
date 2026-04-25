@@ -78,7 +78,11 @@ export type Database = {
           report_generated_at: string | null
           started_at: string
           status: string
+          target_phone_number: string | null
           transcript: string | null
+          twilio_call_sid: string | null
+          twilio_call_status: string | null
+          twilio_stream_sid: string | null
           user_id: string
         }
         Insert: {
@@ -90,7 +94,11 @@ export type Database = {
           report_generated_at?: string | null
           started_at?: string
           status?: string
+          target_phone_number?: string | null
           transcript?: string | null
+          twilio_call_sid?: string | null
+          twilio_call_status?: string | null
+          twilio_stream_sid?: string | null
           user_id: string
         }
         Update: {
@@ -102,7 +110,11 @@ export type Database = {
           report_generated_at?: string | null
           started_at?: string
           status?: string
+          target_phone_number?: string | null
           transcript?: string | null
+          twilio_call_sid?: string | null
+          twilio_call_status?: string | null
+          twilio_stream_sid?: string | null
           user_id?: string
         }
         Relationships: [

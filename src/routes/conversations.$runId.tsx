@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Mic, MicOff, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { gradiumTTS, gradiumSTT, agentReply } from "@/lib/gradium.functions";
+import { gradiumTTS, gradiumSTT, agentReply } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/conversations/$runId")({
   component: () => <AuthGuard><Conversation /></AuthGuard>,
