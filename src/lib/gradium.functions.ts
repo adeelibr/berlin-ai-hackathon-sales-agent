@@ -52,67 +52,72 @@ export const gradiumSTT = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
 
     const transcript = await new Promise<string>((resolve, reject) => {
-      // Cloudflare Workers WebSocket: pass headers via init
-      let ws: WebSocket;
-      try {
-        // Cloudflare Workers' WebSocket constructor accepts an init object
-        // with a `headers` field — TS doesn't know about it.
-        const WSCtor = WebSocket as unknown as new (
-          url: string,
-          init?: { headers?: Record<string, string> }
-        ) => WebSocket;
-        ws = new WSCtor("wss://api.gradium.ai/api/speech/asr", {
-          headers: { "x-api-key": apiKey },
-        });
-      } catch (e) {
-        reject(e as Error);
-        return;
-      }
-
       const parts: string[] = [];
       let settled = false;
+      let ws: WebSocket | null = null;
       const finish = (err: Error | null) => {
         if (settled) return;
         settled = true;
-        try { ws.close(); } catch { /* ignore */ }
+        try { ws?.close(); } catch { /* ignore */ }
         if (err) reject(err);
         else resolve(parts.join(" ").replace(/\s+/g, " ").trim());
       };
 
       const timeout = setTimeout(() => finish(new Error("STT timeout")), 60_000);
 
-      ws.addEventListener("open", () => {
-        ws.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
-      });
+      // Cloudflare Workers requires using fetch() with Upgrade: websocket
+      // to attach custom headers like x-api-key on the WS handshake.
+      (async () => {
+        try {
+          const upgradeRes = await fetch("https://api.gradium.ai/api/speech/asr", {
+            headers: {
+              Upgrade: "websocket",
+              "x-api-key": apiKey,
+            },
+          });
+          const sock = (upgradeRes as unknown as { webSocket?: WebSocket }).webSocket;
+          if (!sock) {
+            clearTimeout(timeout);
+            finish(new Error(`Gradium WS handshake failed (${upgradeRes.status})`));
+            return;
+          }
+          ws = sock;
+          (sock as unknown as { accept: () => void }).accept();
 
-      ws.addEventListener("message", (ev: MessageEvent) => {
-        const raw = typeof ev.data === "string" ? ev.data : "";
-        if (!raw) return;
-        let msg: { type?: string; text?: string; message?: string };
-        try { msg = JSON.parse(raw); } catch { return; }
-        if (msg.type === "ready") {
-          // Send the entire audio in one message, then end_of_stream
-          ws.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
-          ws.send(JSON.stringify({ type: "end_of_stream" }));
-        } else if (msg.type === "text" && typeof msg.text === "string") {
-          parts.push(msg.text);
-        } else if (msg.type === "end_of_stream") {
+          sock.addEventListener("message", (ev: MessageEvent) => {
+            const raw = typeof ev.data === "string" ? ev.data : "";
+            if (!raw) return;
+            let msg: { type?: string; text?: string; message?: string };
+            try { msg = JSON.parse(raw); } catch { return; }
+            if (msg.type === "ready") {
+              sock.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
+              sock.send(JSON.stringify({ type: "end_of_stream" }));
+            } else if (msg.type === "text" && typeof msg.text === "string") {
+              parts.push(msg.text);
+            } else if (msg.type === "end_of_stream") {
+              clearTimeout(timeout);
+              finish(null);
+            } else if (msg.type === "error") {
+              clearTimeout(timeout);
+              finish(new Error(msg.message || "Gradium STT error"));
+            }
+          });
+          sock.addEventListener("close", () => {
+            clearTimeout(timeout);
+            finish(null);
+          });
+          sock.addEventListener("error", () => {
+            clearTimeout(timeout);
+            finish(new Error("Gradium WebSocket error"));
+          });
+
+          // Send setup once the socket is accepted
+          sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
+        } catch (e) {
           clearTimeout(timeout);
-          finish(null);
-        } else if (msg.type === "error") {
-          clearTimeout(timeout);
-          finish(new Error(msg.message || "Gradium STT error"));
+          finish(e instanceof Error ? e : new Error("Gradium WS connect failed"));
         }
-      });
-
-      ws.addEventListener("close", () => {
-        clearTimeout(timeout);
-        finish(null);
-      });
-      ws.addEventListener("error", () => {
-        clearTimeout(timeout);
-        finish(new Error("Gradium WebSocket error"));
-      });
+      })();
     });
 
     return { transcript };
