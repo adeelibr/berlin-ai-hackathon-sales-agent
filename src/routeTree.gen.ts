@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
+import { Route as FlowsFlowIdRouteImport } from './routes/flows.$flowId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -28,35 +30,59 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RunsRunIdRoute = RunsRunIdRouteImport.update({
+  id: '/runs/$runId',
+  path: '/runs/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FlowsFlowIdRoute = FlowsFlowIdRouteImport.update({
+  id: '/flows/$flowId',
+  path: '/flows/$flowId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/runs/$runId': typeof RunsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/runs/$runId': typeof RunsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/runs/$runId': typeof RunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login'
+  fullPaths: '/' | '/dashboard' | '/login' | '/flows/$flowId' | '/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login'
-  id: '__root__' | '/' | '/dashboard' | '/login'
+  to: '/' | '/dashboard' | '/login' | '/flows/$flowId' | '/runs/$runId'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/flows/$flowId'
+    | '/runs/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  FlowsFlowIdRoute: typeof FlowsFlowIdRoute
+  RunsRunIdRoute: typeof RunsRunIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +108,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/runs/$runId': {
+      id: '/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/runs/$runId'
+      preLoaderRoute: typeof RunsRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/flows/$flowId': {
+      id: '/flows/$flowId'
+      path: '/flows/$flowId'
+      fullPath: '/flows/$flowId'
+      preLoaderRoute: typeof FlowsFlowIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +129,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  FlowsFlowIdRoute: FlowsFlowIdRoute,
+  RunsRunIdRoute: RunsRunIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
