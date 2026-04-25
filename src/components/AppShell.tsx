@@ -53,7 +53,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   if (!user) {
     if (typeof window !== "undefined") {
-      navigate({ to: "/login", search: {} });
+      navigate({ to: "/login", search: { mode: "signin" } });
     }
     return null;
   }
