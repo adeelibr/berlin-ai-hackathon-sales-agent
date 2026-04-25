@@ -10,9 +10,8 @@ export const Route = createFileRoute("/runs/$runId")({
 });
 
 type Run = {
-  id: string; phone_number: string; status: string; generated_script: string | null;
-  transcript: string | null; recording_url: string | null; cleaned_recording_url: string | null;
-  duration_seconds: number | null; error: string | null; started_at: string; completed_at: string | null;
+  id: string; status: string; transcript: string | null;
+  error: string | null; started_at: string; completed_at: string | null;
 };
 
 function RunDetail() {
@@ -40,26 +39,13 @@ function RunDetail() {
         {!run ? <div className="mt-12 text-sm text-muted-foreground">Loading…</div> : (
           <div className="mt-6 space-y-8">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Call</p>
-              <h1 className="mt-2 font-mono text-3xl">{run.phone_number}</h1>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Conversation</p>
+              <h1 className="mt-2 font-display text-3xl">{new Date(run.started_at).toLocaleString()}</h1>
               <div className="mt-3 flex gap-3 text-sm text-muted-foreground">
                 <span>Status: <span className="text-foreground">{run.status}</span></span>
-                {run.duration_seconds && <span>Duration: <span className="text-foreground">{run.duration_seconds}s</span></span>}
               </div>
             </div>
             {run.error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{run.error}</div>}
-            {run.cleaned_recording_url && (
-              <div className="rounded-xl border border-border/60 bg-card/60 p-6">
-                <h2 className="font-display text-lg">Recording (cleaned)</h2>
-                <audio controls src={run.cleaned_recording_url} className="mt-4 w-full" />
-              </div>
-            )}
-            {run.generated_script && (
-              <div className="rounded-xl border border-border/60 bg-card/60 p-6">
-                <h2 className="font-display text-lg">Generated script</h2>
-                <pre className="mt-4 whitespace-pre-wrap font-mono text-xs text-muted-foreground">{run.generated_script}</pre>
-              </div>
-            )}
             {run.transcript && (
               <div className="rounded-xl border border-border/60 bg-card/60 p-6">
                 <h2 className="font-display text-lg">Transcript</h2>
