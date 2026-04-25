@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell, AuthGuard } from "@/components/AppShell";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/runs/$runId")({
   component: () => <AuthGuard><RunDetail /></AuthGuard>,
@@ -30,12 +31,30 @@ function RunDetail() {
     return () => { supabase.removeChannel(channel); };
   }, [runId, user]);
 
+  const deleteRun = async () => {
+    if (!confirm("Delete this conversation transcript? This cannot be undone.")) return;
+    const { error } = await supabase.from("runs").delete().eq("id", runId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Conversation deleted");
+    navigate({ to: "/dashboard" });
+  };
+
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-6 py-8">
-        <button onClick={() => navigate({ to: "/dashboard" })} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+        <div className="flex items-center justify-between">
+          <button onClick={() => navigate({ to: "/dashboard" })} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </button>
+          {run && (
+            <button
+              onClick={deleteRun}
+              className="flex items-center gap-2 rounded-md border border-destructive/30 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+          )}
+        </div>
         {!run ? <div className="mt-12 text-sm text-muted-foreground">Loading…</div> : (
           <div className="mt-6 space-y-8">
             <div>
