@@ -60,7 +60,7 @@ function FlowBuilder() {
   const [whatWeDo, setWhatWeDo] = useState("");
   const [phoneNumbers, setPhoneNumbers] = useState("");
   const [hermoziKnowledge, setHermoziKnowledge] = useState(HERMOZI_DEFAULT);
-  const [acPreEnhance, setAcPreEnhance] = useState(true);
+  const [acPostEnhance, setAcPostEnhance] = useState(true);
   const [voice, setVoice] = useState("default");
 
   useEffect(() => {
@@ -74,7 +74,7 @@ function FlowBuilder() {
       setWhatWeDo(data.what_we_do);
       setPhoneNumbers(data.phone_numbers);
       setHermoziKnowledge(data.hermozi_knowledge || HERMOZI_DEFAULT);
-      setAcPreEnhance(data.ac_pre_enhance);
+      setAcPostEnhance(data.ac_post_enhance);
       setVoice(data.voice);
       setLoading(false);
     })();
@@ -85,7 +85,7 @@ function FlowBuilder() {
     const { error } = await supabase.from("flows").update({
       name, who_we_are: whoWeAre, what_we_do: whatWeDo,
       phone_numbers: phoneNumbers, hermozi_knowledge: hermoziKnowledge,
-      ac_pre_enhance: acPreEnhance, voice,
+      ac_post_enhance: acPostEnhance, voice,
     }).eq("id", flowId);
     setSaving(false);
     if (error) toast.error(error.message);
@@ -192,10 +192,10 @@ function FlowBuilder() {
                 <h3 className="font-display text-lg">Make the call</h3>
                 <div className="flex items-center justify-between rounded-md border border-border/60 p-3">
                   <div>
-                    <Label className="text-sm">ai-coustics pre-enhance</Label>
-                    <p className="text-xs text-muted-foreground">Clean TTS before dialing</p>
+                    <Label className="text-sm">ai-coustics post-enhance</Label>
+                    <p className="text-xs text-muted-foreground">Clean recording after the call</p>
                   </div>
-                  <Switch checked={acPreEnhance} onCheckedChange={setAcPreEnhance} />
+                  <Switch checked={acPostEnhance} onCheckedChange={setAcPostEnhance} />
                 </div>
                 <div className="space-y-2">
                   <Label>Voice</Label>
