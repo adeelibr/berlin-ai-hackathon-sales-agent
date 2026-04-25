@@ -13,8 +13,12 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
+import { Route as PhoneDummyNumberRouteImport } from './routes/phone-dummy.$number'
 import { Route as FlowsFlowIdRouteImport } from './routes/flows.$flowId'
 import { Route as ConversationsRunIdRouteImport } from './routes/conversations.$runId'
+import { Route as ApiTwilioMediaStreamRouteImport } from './routes/api/twilio/media-stream'
+import { Route as ApiTwilioTwimlRunIdRouteImport } from './routes/api/twilio/twiml.$runId'
+import { Route as ApiTwilioStatusRunIdRouteImport } from './routes/api/twilio/status.$runId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -36,6 +40,11 @@ const RunsRunIdRoute = RunsRunIdRouteImport.update({
   path: '/runs/$runId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PhoneDummyNumberRoute = PhoneDummyNumberRouteImport.update({
+  id: '/phone-dummy/$number',
+  path: '/phone-dummy/$number',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FlowsFlowIdRoute = FlowsFlowIdRouteImport.update({
   id: '/flows/$flowId',
   path: '/flows/$flowId',
@@ -46,6 +55,21 @@ const ConversationsRunIdRoute = ConversationsRunIdRouteImport.update({
   path: '/conversations/$runId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTwilioMediaStreamRoute = ApiTwilioMediaStreamRouteImport.update({
+  id: '/api/twilio/media-stream',
+  path: '/api/twilio/media-stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwilioTwimlRunIdRoute = ApiTwilioTwimlRunIdRouteImport.update({
+  id: '/api/twilio/twiml/$runId',
+  path: '/api/twilio/twiml/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwilioStatusRunIdRoute = ApiTwilioStatusRunIdRouteImport.update({
+  id: '/api/twilio/status/$runId',
+  path: '/api/twilio/status/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,7 +77,11 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/phone-dummy/$number': typeof PhoneDummyNumberRoute
   '/runs/$runId': typeof RunsRunIdRoute
+  '/api/twilio/media-stream': typeof ApiTwilioMediaStreamRoute
+  '/api/twilio/status/$runId': typeof ApiTwilioStatusRunIdRoute
+  '/api/twilio/twiml/$runId': typeof ApiTwilioTwimlRunIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -61,7 +89,11 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/phone-dummy/$number': typeof PhoneDummyNumberRoute
   '/runs/$runId': typeof RunsRunIdRoute
+  '/api/twilio/media-stream': typeof ApiTwilioMediaStreamRoute
+  '/api/twilio/status/$runId': typeof ApiTwilioStatusRunIdRoute
+  '/api/twilio/twiml/$runId': typeof ApiTwilioTwimlRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -70,7 +102,11 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
+  '/phone-dummy/$number': typeof PhoneDummyNumberRoute
   '/runs/$runId': typeof RunsRunIdRoute
+  '/api/twilio/media-stream': typeof ApiTwilioMediaStreamRoute
+  '/api/twilio/status/$runId': typeof ApiTwilioStatusRunIdRoute
+  '/api/twilio/twiml/$runId': typeof ApiTwilioTwimlRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -80,7 +116,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/conversations/$runId'
     | '/flows/$flowId'
+    | '/phone-dummy/$number'
     | '/runs/$runId'
+    | '/api/twilio/media-stream'
+    | '/api/twilio/status/$runId'
+    | '/api/twilio/twiml/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -88,7 +128,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/conversations/$runId'
     | '/flows/$flowId'
+    | '/phone-dummy/$number'
     | '/runs/$runId'
+    | '/api/twilio/media-stream'
+    | '/api/twilio/status/$runId'
+    | '/api/twilio/twiml/$runId'
   id:
     | '__root__'
     | '/'
@@ -96,7 +140,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/conversations/$runId'
     | '/flows/$flowId'
+    | '/phone-dummy/$number'
     | '/runs/$runId'
+    | '/api/twilio/media-stream'
+    | '/api/twilio/status/$runId'
+    | '/api/twilio/twiml/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -105,7 +153,11 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ConversationsRunIdRoute: typeof ConversationsRunIdRoute
   FlowsFlowIdRoute: typeof FlowsFlowIdRoute
+  PhoneDummyNumberRoute: typeof PhoneDummyNumberRoute
   RunsRunIdRoute: typeof RunsRunIdRoute
+  ApiTwilioMediaStreamRoute: typeof ApiTwilioMediaStreamRoute
+  ApiTwilioStatusRunIdRoute: typeof ApiTwilioStatusRunIdRoute
+  ApiTwilioTwimlRunIdRoute: typeof ApiTwilioTwimlRunIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -138,6 +190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RunsRunIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/phone-dummy/$number': {
+      id: '/phone-dummy/$number'
+      path: '/phone-dummy/$number'
+      fullPath: '/phone-dummy/$number'
+      preLoaderRoute: typeof PhoneDummyNumberRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/flows/$flowId': {
       id: '/flows/$flowId'
       path: '/flows/$flowId'
@@ -152,6 +211,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConversationsRunIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/twilio/media-stream': {
+      id: '/api/twilio/media-stream'
+      path: '/api/twilio/media-stream'
+      fullPath: '/api/twilio/media-stream'
+      preLoaderRoute: typeof ApiTwilioMediaStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twilio/twiml/$runId': {
+      id: '/api/twilio/twiml/$runId'
+      path: '/api/twilio/twiml/$runId'
+      fullPath: '/api/twilio/twiml/$runId'
+      preLoaderRoute: typeof ApiTwilioTwimlRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twilio/status/$runId': {
+      id: '/api/twilio/status/$runId'
+      path: '/api/twilio/status/$runId'
+      fullPath: '/api/twilio/status/$runId'
+      preLoaderRoute: typeof ApiTwilioStatusRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -161,7 +241,11 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ConversationsRunIdRoute: ConversationsRunIdRoute,
   FlowsFlowIdRoute: FlowsFlowIdRoute,
+  PhoneDummyNumberRoute: PhoneDummyNumberRoute,
   RunsRunIdRoute: RunsRunIdRoute,
+  ApiTwilioMediaStreamRoute: ApiTwilioMediaStreamRoute,
+  ApiTwilioStatusRunIdRoute: ApiTwilioStatusRunIdRoute,
+  ApiTwilioTwimlRunIdRoute: ApiTwilioTwimlRunIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

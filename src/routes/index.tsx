@@ -93,7 +93,7 @@ function Index() {
       </main>
 
       <footer className="mx-auto mt-32 max-w-6xl border-t border-border/40 px-6 py-8 text-center text-xs text-muted-foreground">
-        Built with Lovable AI · Telli · ai-coustics
+        Built for Berlin AI Hackathon · Telli · ai-coustics
       </footer>
     </div>
   );
