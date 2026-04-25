@@ -34,6 +34,7 @@ function Index() {
         <nav className="flex items-center gap-2">
           <Link
             to="/login"
+            search={{ mode: "signin" }}
             className="rounded-md px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             Sign in
@@ -70,6 +71,7 @@ function Index() {
           </Button>
           <Link
             to="/login"
+            search={{ mode: "signin" }}
             className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             I already have an account
