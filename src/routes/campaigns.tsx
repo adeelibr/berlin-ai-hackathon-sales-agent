@@ -211,6 +211,11 @@ function CampaignEditor({
     const { error } = await supabase.from("campaigns").update({
       name: next.name, persona_id: next.persona_id, brief: next.brief,
       talking_points: next.talking_points, status: next.status,
+      company_name: next.company_name, company_tagline: next.company_tagline,
+      company_industry: next.company_industry, company_website: next.company_website,
+      company_linkedin: next.company_linkedin, company_twitter: next.company_twitter,
+      company_what_we_do: next.company_what_we_do, company_value_prop: next.company_value_prop,
+      company_target_customer: next.company_target_customer, company_logo_url: next.company_logo_url,
     }).eq("id", campaign.id);
     if (error) { toast.error(error.message); return; }
     setSavedAt(new Date());
