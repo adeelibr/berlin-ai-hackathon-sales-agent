@@ -110,21 +110,40 @@ export const gradiumSTT = createServerFn({ method: "POST" })
       }, 60_000);
 
       try {
-        // Node 22+ and modern runtimes expose a global WebSocket constructor.
-        // The undici/Node implementation accepts a non-standard `headers` option
-        // on the second argument, which is what Gradium needs for x-api-key auth.
-        const sock = new (WebSocket as unknown as new (
-          url: string,
-          opts: { headers: Record<string, string> },
-        ) => WebSocket)("wss://api.gradium.ai/api/speech/asr", {
-          headers: { "x-api-key": apiKey },
+        // Cloudflare Workers' WebSocket constructor doesn't support custom
+        // headers — `new WebSocket(url, opts)` treats the 2nd arg as protocols
+        // and throws "protocol header token is invalid" on objects.
+        // The only supported way to add custom headers (like Gradium's
+        // x-api-key auth) is via `fetch()` with `Upgrade: websocket`.
+        const upgrade = await fetch("https://api.gradium.ai/api/speech/asr", {
+          method: "GET",
+          headers: {
+            Upgrade: "websocket",
+            "x-api-key": apiKey,
+          },
         });
+        const sock = (upgrade as unknown as { webSocket?: WebSocket }).webSocket;
+        if (!sock) {
+          clearTimeout(timeout);
+          finish(new Error(`Gradium upgrade failed: ${upgrade.status} ${await upgrade.text().catch(() => "")}`));
+          return;
+        }
+        // Workers requires accept() before sending/receiving.
+        (sock as unknown as { accept: () => void }).accept();
         ws = sock;
 
         sock.addEventListener("open", () => {
           console.info("[gradiumSTT] WS open — sending setup");
           sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
         });
+        // Workers WS that came from fetch() is already "open" — no open event fires.
+        // Send setup immediately.
+        try {
+          console.info("[gradiumSTT] WS upgraded — sending setup");
+          sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
+        } catch (e) {
+          console.error(`[gradiumSTT] failed to send setup: ${e instanceof Error ? e.message : String(e)}`);
+        }
 
         sock.addEventListener("message", (ev: MessageEvent) => {
           const raw = typeof ev.data === "string" ? ev.data : "";
