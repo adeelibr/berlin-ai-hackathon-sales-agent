@@ -35,14 +35,12 @@ type Lead = {
   updated_at: string;
 };
 
-const STATUSES = ["new", "contacted", "qualified", "won", "lost"] as const;
+const STATUSES = ["new", "called", "scheduled"] as const;
 
 const STATUS_TONE: Record<string, string> = {
   new: "bg-muted/60 text-foreground border-border",
-  contacted: "bg-accent/15 text-accent-foreground border-accent/30",
-  qualified: "bg-accent/30 text-accent-foreground border-accent/50",
-  won: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  lost: "bg-destructive/15 text-destructive border-destructive/30",
+  called: "bg-accent/15 text-accent-foreground border-accent/30",
+  scheduled: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
 };
 
 function LeadsPage() {

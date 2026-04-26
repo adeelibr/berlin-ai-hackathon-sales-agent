@@ -4,14 +4,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell, AuthGuard } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { Megaphone, Phone, Users, UserPlus, CheckCircle2, Clock } from "lucide-react";
+import { Megaphone, Users, UserPlus, Clock, ChevronRight, PhoneCall, CalendarCheck } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: () => <AuthGuard><Dashboard /></AuthGuard>,
 });
 
 type Lead = { id: string; status: string; created_at: string };
-type Campaign = { id: string; status: string };
+type Campaign = {
+  id: string;
+  name: string;
+  status: string;
+  company_name: string;
+  persona_id: string | null;
+  updated_at: string;
+};
 type LiveRun = {
   id: string;
   status: string;
@@ -47,13 +54,16 @@ function Dashboard() {
       const [profileRes, leadsRes, campaignsRes, runRes] = await Promise.all([
         supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
         supabase.from("leads").select("id,status,created_at").order("created_at", { ascending: false }),
-        supabase.from("campaigns").select("id,status"),
+        supabase
+          .from("campaigns")
+          .select("id,name,status,company_name,persona_id,updated_at")
+          .order("updated_at", { ascending: false }),
         supabase.from("runs").select("id,status,started_at,campaign_id,lead_id").eq("status", "active").order("started_at", { ascending: false }).limit(1),
       ]);
       if (cancelled) return;
       setDisplayName(profileRes.data?.display_name ?? user.email?.split("@")[0] ?? "");
       setLeads(leadsRes.data ?? []);
-      setCampaigns(campaignsRes.data ?? []);
+      setCampaigns((campaignsRes.data ?? []) as Campaign[]);
       setLiveRun(runRes.data?.[0] ?? null);
       setLoading(false);
     })();
@@ -71,8 +81,11 @@ function Dashboard() {
         if (data) setLeads(data);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "campaigns" }, async () => {
-        const { data } = await supabase.from("campaigns").select("id,status");
-        if (data) setCampaigns(data);
+        const { data } = await supabase
+          .from("campaigns")
+          .select("id,name,status,company_name,persona_id,updated_at")
+          .order("updated_at", { ascending: false });
+        if (data) setCampaigns(data as Campaign[]);
       })
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
@@ -105,18 +118,18 @@ function Dashboard() {
     const total = leads.length;
     const now = Date.now();
     const newThisWeek = leads.filter((l) => now - new Date(l.created_at).getTime() < 7 * 864e5).length;
-    const contacted = leads.filter((l) => ["contacted", "qualified", "won"].includes(l.status)).length;
-    const won = leads.filter((l) => l.status === "won").length;
+    const called = leads.filter((l) => l.status === "called").length;
+    const scheduled = leads.filter((l) => l.status === "scheduled").length;
     const totalCampaigns = campaigns.length;
-    return { total, newThisWeek, contacted, won, totalCampaigns };
+    return { total, newThisWeek, called, scheduled, totalCampaigns };
   }, [leads, campaigns]);
 
   const cards: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; tone: string }[] = [
     { label: "Campaigns", value: stats.totalCampaigns, icon: Megaphone, tone: "text-accent" },
     { label: "Total leads", value: stats.total, icon: Users, tone: "text-foreground" },
     { label: "New this week", value: stats.newThisWeek, icon: UserPlus, tone: "text-accent" },
-    { label: "Contacted", value: stats.contacted, icon: Phone, tone: "text-foreground" },
-    { label: "Won", value: stats.won, icon: CheckCircle2, tone: "text-accent" },
+    { label: "Called", value: stats.called, icon: PhoneCall, tone: "text-foreground" },
+    { label: "Scheduled", value: stats.scheduled, icon: CalendarCheck, tone: "text-accent" },
   ];
 
   return (
@@ -144,6 +157,70 @@ function Dashboard() {
               </div>
             );
           })}
+        </div>
+
+        {/* Campaigns table */}
+        <div className="mt-10">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-display text-2xl text-foreground">Campaigns</h2>
+            <Link to="/campaigns" className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground">
+              Manage →
+            </Link>
+          </div>
+          <div
+            className="mt-4 overflow-hidden rounded-xl border border-border/60 bg-card/40"
+            style={{ boxShadow: "var(--shadow-zen)" }}
+          >
+            {loading ? (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">Loading…</div>
+            ) : campaigns.length === 0 ? (
+              <Link
+                to="/campaigns"
+                className="flex items-center justify-between px-5 py-8 transition-colors hover:bg-muted/30"
+              >
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  <Megaphone className="h-4 w-4" />
+                  <span className="text-sm">No campaigns yet. Create your first.</span>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    <th className="px-5 py-3 font-medium">Name</th>
+                    <th className="px-5 py-3 font-medium">Company</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Updated</th>
+                    <th className="px-5 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map((c) => (
+                    <tr
+                      key={c.id}
+                      onClick={() => navigate({ to: "/campaigns" })}
+                      className="cursor-pointer border-b border-border/40 last:border-0 transition-colors hover:bg-muted/30"
+                    >
+                      <td className="px-5 py-3 font-medium text-foreground">{c.name || "Untitled campaign"}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{c.company_name || "—"}</td>
+                      <td className="px-5 py-3">
+                        <span className="inline-flex rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground">
+                        {new Date(c.updated_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <ChevronRight className="inline h-4 w-4 text-muted-foreground" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
         {/* Now dialing */}
