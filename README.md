@@ -8,6 +8,7 @@ This project supports two outbound call demo modes:
 ## Documentation
 
 - [Architecture overview](docs/ARCHITECTURE.md)
+- [Technical reference](docs/TECHNICAL_REFERENCE.md)
 
 This guide explains how to run the project locally, configure `.env`, expose it with ngrok, and demo both transports.
 
