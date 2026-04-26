@@ -24,6 +24,7 @@ function Conversation() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [history, setHistory] = useState<Turn[]>([]);
   const [flowCtx, setFlowCtx] = useState<{ whoWeAre: string; whatWeDo: string; persona: string; campaignId: string | null } | null>(null);
+  const [personaId, setPersonaId] = useState<string | null>(null);
   const [chip, setChip] = useState<{ campaign: string; persona: string; lead: string }>({ campaign: "", persona: "", lead: "" });
   const [statusText, setStatusText] = useState("");
 
@@ -74,6 +75,7 @@ function Conversation() {
       if (campRes.data?.persona_id) {
         const { data: p } = await supabase.from("sales_personas").select("name").eq("id", campRes.data.persona_id).maybeSingle();
         personaName = p?.name ?? "";
+        setPersonaId(campRes.data.persona_id);
       }
       setChip({
         campaign: campRes.data?.name ?? "",
@@ -89,7 +91,9 @@ function Conversation() {
   const speak = useCallback(async (text: string) => {
     setPhase("agent_speaking");
     setStatusText("Agent speaking…");
-    const { audioBase64, mime } = await ttsFn({ data: { text } });
+    const { audioBase64, mime } = await ttsFn({
+      data: { text, personaId: personaId ?? undefined, userId: user?.id },
+    });
     const bin = atob(audioBase64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -102,7 +106,7 @@ function Conversation() {
       audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
       audio.play().catch(() => resolve());
     });
-  }, [ttsFn]);
+  }, [ttsFn, personaId, user?.id]);
 
   // Append a turn locally + persist transcript
   const persistTurn = useCallback(async (turn: Turn, full: Turn[]) => {
