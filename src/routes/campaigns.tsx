@@ -403,3 +403,107 @@ function TestDialog({ onLaunch }: { onLaunch: () => void }) {
     </Dialog>
   );
 }
+
+function CompanyField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function CompanySection({
+  draft, setDraft, persist,
+}: {
+  draft: Campaign;
+  setDraft: (c: Campaign) => void;
+  persist: (patch: Partial<Campaign>) => Promise<void>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onLogo = async (file: File) => {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    setUploading(true);
+    const path = `${u.user.id}/${draft.id}/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("company-logos").upload(path, file, { upsert: true });
+    if (error) { toast.error(error.message); setUploading(false); return; }
+    const { data: signed } = await supabase.storage.from("company-logos").createSignedUrl(path, 60 * 60 * 24 * 365);
+    await persist({ company_logo_url: signed?.signedUrl ?? path });
+    setUploading(false);
+  };
+
+  return (
+    <div className="border-t border-border/40 pt-8">
+      <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Company for this campaign</p>
+      <p className="mt-1 text-xs text-muted-foreground">The story your agent tells on this campaign — each campaign can sell on behalf of a different company.</p>
+
+      <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_220px]">
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CompanyField label="Company name">
+              <Input value={draft.company_name} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} onBlur={() => persist({})} />
+            </CompanyField>
+            <CompanyField label="Tagline">
+              <Input value={draft.company_tagline} onChange={(e) => setDraft({ ...draft, company_tagline: e.target.value })} onBlur={() => persist({})} />
+            </CompanyField>
+            <CompanyField label="Industry">
+              <Input value={draft.company_industry} onChange={(e) => setDraft({ ...draft, company_industry: e.target.value })} onBlur={() => persist({})} />
+            </CompanyField>
+            <CompanyField label="Website">
+              <Input value={draft.company_website} onChange={(e) => setDraft({ ...draft, company_website: e.target.value })} onBlur={() => persist({})} placeholder="https://" />
+            </CompanyField>
+            <CompanyField label="LinkedIn">
+              <Input value={draft.company_linkedin} onChange={(e) => setDraft({ ...draft, company_linkedin: e.target.value })} onBlur={() => persist({})} />
+            </CompanyField>
+            <CompanyField label="Twitter / X">
+              <Input value={draft.company_twitter} onChange={(e) => setDraft({ ...draft, company_twitter: e.target.value })} onBlur={() => persist({})} />
+            </CompanyField>
+          </div>
+
+          <CompanyField label="What we do">
+            <Textarea rows={4} value={draft.company_what_we_do}
+              onChange={(e) => setDraft({ ...draft, company_what_we_do: e.target.value })}
+              onBlur={() => persist({})}
+              placeholder="In one paragraph, what your team makes and who it's for." />
+          </CompanyField>
+          <CompanyField label="Value prop">
+            <Textarea rows={3} value={draft.company_value_prop}
+              onChange={(e) => setDraft({ ...draft, company_value_prop: e.target.value })}
+              onBlur={() => persist({})}
+              placeholder="The result you reliably create, in plain language." />
+          </CompanyField>
+          <CompanyField label="Target customer">
+            <Textarea rows={3} value={draft.company_target_customer}
+              onChange={(e) => setDraft({ ...draft, company_target_customer: e.target.value })}
+              onBlur={() => persist({})}
+              placeholder="Who you serve best — role, company size, situation." />
+          </CompanyField>
+        </div>
+
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Logo</p>
+          <div className="mt-3 flex aspect-square w-full items-center justify-center rounded-xl border border-dashed border-border/60 bg-card/40 overflow-hidden">
+            {draft.company_logo_url ? (
+              <img src={draft.company_logo_url} alt="Logo" className="h-full w-full object-contain p-4" />
+            ) : (
+              <ImageIcon className="h-8 w-8 text-muted-foreground/60" />
+            )}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onLogo(e.target.files[0])}
+          />
+          <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Upload className="h-3.5 w-3.5" /> {uploading ? "Uploading…" : "Upload logo"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
