@@ -180,7 +180,7 @@ export const agentReply = createServerFn({ method: "POST" })
       const sb = adminClient();
       const { data: campaign } = await sb
         .from("campaigns")
-        .select("brief, talking_points, persona_id")
+        .select("brief, talking_points, persona_id, company_name, company_tagline, company_what_we_do, company_value_prop, company_target_customer")
         .eq("id", data.campaignId)
         .eq("user_id", data.userId)
         .maybeSingle();
@@ -195,16 +195,14 @@ export const agentReply = createServerFn({ method: "POST" })
       if (Array.isArray(campaign?.talking_points) && campaign.talking_points.length) {
         whatWeDo += `\n\nTalking points:\n- ${campaign.talking_points.join("\n- ")}`;
       }
-      const { data: company } = await sb
-        .from("company_profile")
-        .select("name, tagline, what_we_do, value_prop, target_customer")
-        .eq("user_id", data.userId)
-        .maybeSingle();
-      if (company) {
-        whoWeAre = [company.name, company.tagline].filter(Boolean).join(" — ") || whoWeAre;
-        if (company.what_we_do) whatWeDo = (company.what_we_do + (whatWeDo ? "\n\n" + whatWeDo : ""));
-        valueProp = company.value_prop ?? "";
-        targetCustomer = company.target_customer ?? "";
+      if (campaign) {
+        const identity = [campaign.company_name, campaign.company_tagline].filter(Boolean).join(" — ");
+        if (identity) whoWeAre = identity;
+        if (campaign.company_what_we_do) {
+          whatWeDo = campaign.company_what_we_do + (whatWeDo ? "\n\n" + whatWeDo : "");
+        }
+        valueProp = campaign.company_value_prop ?? "";
+        targetCustomer = campaign.company_target_customer ?? "";
       }
     }
 
