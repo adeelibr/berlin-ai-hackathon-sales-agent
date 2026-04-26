@@ -8,8 +8,6 @@ This project supports two outbound call demo modes:
 ## Documentation
 
 - [Architecture overview](docs/ARCHITECTURE.md)
-- [Demo guide](docs/DEMO.md)
-- [Hackathon submission checklist](docs/SUBMISSION_CHECKLIST.md)
 
 This guide explains how to run the project locally, configure `.env`, expose it with ngrok, and demo both transports.
 
