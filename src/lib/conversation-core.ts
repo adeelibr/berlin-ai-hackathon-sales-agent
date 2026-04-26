@@ -8,6 +8,7 @@ import {
   resamplePcm16,
   wavBase64ToMulawBase64,
 } from "./audio-utils";
+import { SALES_PLAYBOOK } from "./sales-playbook";
 
 export type Turn = {
   role: "assistant" | "user";
@@ -58,6 +59,9 @@ export async function generateAgentReply(
 
   const instructions = `You are a voice agent in a live spoken conversation.
 
+Global sales playbook:
+${SALES_PLAYBOOK}
+
 About us:
 ${data.whoWeAre || "(not provided)"}
 
@@ -68,7 +72,8 @@ Your persona and instructions:
 ${data.persona || "Be warm, brief, conversational. Ask one question at a time."}
 
 Rules:
-- This is SPOKEN, not written. 1-3 short sentences max per turn.
+- This is SPOKEN, not written. Default to 1 short sentence, then 1 short question.
+- Never exceed 2 short sentences unless the user directly asks for detail.
 - No markdown, no lists, no emoji. Plain prose only.
 - No stage directions like *smiles*. Just say what you'd say out loud.
 - If the user just joined and there is no prior turn, open with a warm greeting that introduces who we are in one sentence and asks an open question.`;
