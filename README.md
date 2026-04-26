@@ -11,27 +11,27 @@ Built at the **Big Berlin Hack** (Berlin AI Hackathon, hosted by The Delta Campu
 ## How it works
 
 <!-- TODO: add hero / product screenshot here -->
-`![Logo](docs/images/logo.png)`
+![Logo](docs/images/logo.png)
 
 1. **Create a campaign.** Each campaign represents one company / one offer. You fill in your company identity (name, tagline, what you do, value prop, target customer, logo) and the talking points you want the agent to hit.
    <!-- TODO: screenshot of the campaign editor -->
-   `![Campaign editor](docs/images/campaigns.png)`
+    ![Campaign editor](docs/images/campaigns.png)
 
 2. **Pick a sales persona.** Personas are reusable AI sellers, each with their own personality, prompt, and **voice**. Stillwater seeds a few defaults (e.g. consultative, energetic, technical) and you can edit any of them — including swapping the voice — from the Personas page.
    <!-- TODO: screenshot of the personas page -->
-   `![Sales personas](docs/images/sales-personas.png)`
+   ![Sales personas](docs/images/sales-personas.png)
 
 3. **Add leads.** Import or create leads (name, company, phone, notes) and attach them to a campaign.
    <!-- TODO: screenshot of the leads page -->
-   `![Leads](docs/images/leads.png)`
+   ![Leads](docs/images/leads.png)
 
 4. **Run the call.** Stillwater opens a live conversation: the agent speaks first using the persona's voice, listens to the prospect through the browser mic, transcribes via the Gradium speech API, and replies in real time using a system prompt hydrated from the campaign's company context. In the future Stillwater will directly use the Twilio API to make cold calls to each individual lead.
    <!-- TODO: screenshot of an active conversation -->
-   `![Live conversation](docs/images/conversation.png)`
+   ![Live conversation](docs/images/conversation.png)
 
 5. **Review the report.** When the call ends, Stillwater stores the full transcript and generates a structured report (summary, objections, next steps) you can review from the dashboard.
    <!-- TODO: screenshot of a finished run / report -->
-   `![Run report](docs/images/report.png)`
+   ![Run report](docs/images/report.png)
 
 ---
 
