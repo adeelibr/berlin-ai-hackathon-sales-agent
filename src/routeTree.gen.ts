@@ -9,8 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SalesPersonasRouteImport } from './routes/sales-personas'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LeadsRouteImport } from './routes/leads'
+import { Route as FlowsRouteImport } from './routes/flows'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ConversationsRouteImport } from './routes/conversations'
+import { Route as CompanyRouteImport } from './routes/company'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
 import { Route as PhoneDummyNumberRouteImport } from './routes/phone-dummy.$number'
@@ -20,14 +26,44 @@ import { Route as ApiTwilioMediaStreamRouteImport } from './routes/api/twilio/me
 import { Route as ApiTwilioTwimlRunIdRouteImport } from './routes/api/twilio/twiml.$runId'
 import { Route as ApiTwilioStatusRunIdRouteImport } from './routes/api/twilio/status.$runId'
 
+const SalesPersonasRoute = SalesPersonasRouteImport.update({
+  id: '/sales-personas',
+  path: '/sales-personas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LeadsRoute = LeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FlowsRoute = FlowsRouteImport.update({
+  id: '/flows',
+  path: '/flows',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConversationsRoute = ConversationsRouteImport.update({
+  id: '/conversations',
+  path: '/conversations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanyRoute = CompanyRouteImport.update({
+  id: '/company',
+  path: '/company',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -46,14 +82,14 @@ const PhoneDummyNumberRoute = PhoneDummyNumberRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlowsFlowIdRoute = FlowsFlowIdRouteImport.update({
-  id: '/flows/$flowId',
-  path: '/flows/$flowId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$flowId',
+  path: '/$flowId',
+  getParentRoute: () => FlowsRoute,
 } as any)
 const ConversationsRunIdRoute = ConversationsRunIdRouteImport.update({
-  id: '/conversations/$runId',
-  path: '/conversations/$runId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$runId',
+  path: '/$runId',
+  getParentRoute: () => ConversationsRoute,
 } as any)
 const ApiTwilioMediaStreamRoute = ApiTwilioMediaStreamRouteImport.update({
   id: '/api/twilio/media-stream',
@@ -73,8 +109,14 @@ const ApiTwilioStatusRunIdRoute = ApiTwilioStatusRunIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/campaigns': typeof CampaignsRoute
+  '/company': typeof CompanyRoute
+  '/conversations': typeof ConversationsRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/flows': typeof FlowsRouteWithChildren
+  '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
+  '/sales-personas': typeof SalesPersonasRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/phone-dummy/$number': typeof PhoneDummyNumberRoute
@@ -85,8 +127,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/campaigns': typeof CampaignsRoute
+  '/company': typeof CompanyRoute
+  '/conversations': typeof ConversationsRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/flows': typeof FlowsRouteWithChildren
+  '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
+  '/sales-personas': typeof SalesPersonasRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/phone-dummy/$number': typeof PhoneDummyNumberRoute
@@ -98,8 +146,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/campaigns': typeof CampaignsRoute
+  '/company': typeof CompanyRoute
+  '/conversations': typeof ConversationsRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/flows': typeof FlowsRouteWithChildren
+  '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
+  '/sales-personas': typeof SalesPersonasRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/phone-dummy/$number': typeof PhoneDummyNumberRoute
@@ -112,8 +166,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/campaigns'
+    | '/company'
+    | '/conversations'
     | '/dashboard'
+    | '/flows'
+    | '/leads'
     | '/login'
+    | '/sales-personas'
     | '/conversations/$runId'
     | '/flows/$flowId'
     | '/phone-dummy/$number'
@@ -124,8 +184,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/campaigns'
+    | '/company'
+    | '/conversations'
     | '/dashboard'
+    | '/flows'
+    | '/leads'
     | '/login'
+    | '/sales-personas'
     | '/conversations/$runId'
     | '/flows/$flowId'
     | '/phone-dummy/$number'
@@ -136,8 +202,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/campaigns'
+    | '/company'
+    | '/conversations'
     | '/dashboard'
+    | '/flows'
+    | '/leads'
     | '/login'
+    | '/sales-personas'
     | '/conversations/$runId'
     | '/flows/$flowId'
     | '/phone-dummy/$number'
@@ -149,10 +221,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CampaignsRoute: typeof CampaignsRoute
+  CompanyRoute: typeof CompanyRoute
+  ConversationsRoute: typeof ConversationsRouteWithChildren
   DashboardRoute: typeof DashboardRoute
+  FlowsRoute: typeof FlowsRouteWithChildren
+  LeadsRoute: typeof LeadsRoute
   LoginRoute: typeof LoginRoute
-  ConversationsRunIdRoute: typeof ConversationsRunIdRoute
-  FlowsFlowIdRoute: typeof FlowsFlowIdRoute
+  SalesPersonasRoute: typeof SalesPersonasRoute
   PhoneDummyNumberRoute: typeof PhoneDummyNumberRoute
   RunsRunIdRoute: typeof RunsRunIdRoute
   ApiTwilioMediaStreamRoute: typeof ApiTwilioMediaStreamRoute
@@ -162,6 +238,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sales-personas': {
+      id: '/sales-personas'
+      path: '/sales-personas'
+      fullPath: '/sales-personas'
+      preLoaderRoute: typeof SalesPersonasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -169,11 +252,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/leads': {
+      id: '/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof LeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/flows': {
+      id: '/flows'
+      path: '/flows'
+      fullPath: '/flows'
+      preLoaderRoute: typeof FlowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conversations': {
+      id: '/conversations'
+      path: '/conversations'
+      fullPath: '/conversations'
+      preLoaderRoute: typeof ConversationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company': {
+      id: '/company'
+      path: '/company'
+      fullPath: '/company'
+      preLoaderRoute: typeof CompanyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -199,17 +317,17 @@ declare module '@tanstack/react-router' {
     }
     '/flows/$flowId': {
       id: '/flows/$flowId'
-      path: '/flows/$flowId'
+      path: '/$flowId'
       fullPath: '/flows/$flowId'
       preLoaderRoute: typeof FlowsFlowIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof FlowsRoute
     }
     '/conversations/$runId': {
       id: '/conversations/$runId'
-      path: '/conversations/$runId'
+      path: '/$runId'
       fullPath: '/conversations/$runId'
       preLoaderRoute: typeof ConversationsRunIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ConversationsRoute
     }
     '/api/twilio/media-stream': {
       id: '/api/twilio/media-stream'
@@ -235,12 +353,38 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ConversationsRouteChildren {
+  ConversationsRunIdRoute: typeof ConversationsRunIdRoute
+}
+
+const ConversationsRouteChildren: ConversationsRouteChildren = {
+  ConversationsRunIdRoute: ConversationsRunIdRoute,
+}
+
+const ConversationsRouteWithChildren = ConversationsRoute._addFileChildren(
+  ConversationsRouteChildren,
+)
+
+interface FlowsRouteChildren {
+  FlowsFlowIdRoute: typeof FlowsFlowIdRoute
+}
+
+const FlowsRouteChildren: FlowsRouteChildren = {
+  FlowsFlowIdRoute: FlowsFlowIdRoute,
+}
+
+const FlowsRouteWithChildren = FlowsRoute._addFileChildren(FlowsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CampaignsRoute: CampaignsRoute,
+  CompanyRoute: CompanyRoute,
+  ConversationsRoute: ConversationsRouteWithChildren,
   DashboardRoute: DashboardRoute,
+  FlowsRoute: FlowsRouteWithChildren,
+  LeadsRoute: LeadsRoute,
   LoginRoute: LoginRoute,
-  ConversationsRunIdRoute: ConversationsRunIdRoute,
-  FlowsFlowIdRoute: FlowsFlowIdRoute,
+  SalesPersonasRoute: SalesPersonasRoute,
   PhoneDummyNumberRoute: PhoneDummyNumberRoute,
   RunsRunIdRoute: RunsRunIdRoute,
   ApiTwilioMediaStreamRoute: ApiTwilioMediaStreamRoute,
