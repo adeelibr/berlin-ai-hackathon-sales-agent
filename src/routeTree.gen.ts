@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CompanyRouteImport } from './routes/company'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
 import { Route as FlowsFlowIdRouteImport } from './routes/flows.$flowId'
@@ -30,6 +31,11 @@ const LeadsRoute = LeadsRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanyRoute = CompanyRouteImport.update({
+  id: '/company',
+  path: '/company',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -55,6 +61,7 @@ const ConversationsRunIdRoute = ConversationsRunIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/company': typeof CompanyRoute
   '/dashboard': typeof DashboardRoute
   '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
@@ -64,6 +71,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/company': typeof CompanyRoute
   '/dashboard': typeof DashboardRoute
   '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
@@ -74,6 +82,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/company': typeof CompanyRoute
   '/dashboard': typeof DashboardRoute
   '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
@@ -85,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/company'
     | '/dashboard'
     | '/leads'
     | '/login'
@@ -94,6 +104,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/company'
     | '/dashboard'
     | '/leads'
     | '/login'
@@ -103,6 +114,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/company'
     | '/dashboard'
     | '/leads'
     | '/login'
@@ -113,6 +125,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CompanyRoute: typeof CompanyRoute
   DashboardRoute: typeof DashboardRoute
   LeadsRoute: typeof LeadsRoute
   LoginRoute: typeof LoginRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company': {
+      id: '/company'
+      path: '/company'
+      fullPath: '/company'
+      preLoaderRoute: typeof CompanyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -177,6 +197,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CompanyRoute: CompanyRoute,
   DashboardRoute: DashboardRoute,
   LeadsRoute: LeadsRoute,
   LoginRoute: LoginRoute,
