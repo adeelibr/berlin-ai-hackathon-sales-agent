@@ -12,11 +12,24 @@ function adminClient() {
  * Gradium TTS via REST: server-side call (keeps API key safe), returns base64 WAV.
  */
 export const gradiumTTS = createServerFn({ method: "POST" })
-  .inputValidator((data: { text: string; voiceId?: string }) => data)
+  .inputValidator((data: { text: string; voiceId?: string; personaId?: string; userId?: string }) => data)
   .handler(async ({ data }) => {
     const apiKey = process.env.GRADIUM_API_KEY;
     if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
-    const voice = data.voiceId || "YTpq7expH9539ERJ";
+    let voice = data.voiceId || "";
+    if (!voice && data.personaId && data.userId) {
+      try {
+        const sb = adminClient();
+        const { data: p } = await sb
+          .from("sales_personas")
+          .select("voice_id")
+          .eq("id", data.personaId)
+          .eq("user_id", data.userId)
+          .maybeSingle();
+        if (p?.voice_id) voice = p.voice_id;
+      } catch { /* fall back to default */ }
+    }
+    if (!voice) voice = "YTpq7expH9539ERJ";
 
     const res = await fetch("https://api.gradium.ai/api/post/speech/tts", {
       method: "POST",
