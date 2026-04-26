@@ -362,6 +362,9 @@ function CampaignEditor({
         </div>
       </div>
 
+      {/* Company */}
+      <CompanySection draft={draft} setDraft={setDraft} persist={persist} />
+
       {/* Footer actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/40 pt-6">
         <Button variant="ghost" size="sm" onClick={() => persist({ status: "draft" })}>Save as draft</Button>
