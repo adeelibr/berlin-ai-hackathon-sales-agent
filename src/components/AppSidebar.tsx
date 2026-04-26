@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
-  Building2,
   UserSquare2,
   Megaphone,
   LogOut,
@@ -72,7 +71,6 @@ export function AppSidebar() {
   const workspace: NavItem[] = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/leads", label: "Leads", icon: Users, count: counts.leads },
-    { to: "/company", label: "Company", icon: Building2 },
     { to: "/personas", label: "Sales personas", icon: UserSquare2, count: counts.personas },
     { to: "/campaigns", label: "Campaigns", icon: Megaphone, count: counts.campaigns },
   ];

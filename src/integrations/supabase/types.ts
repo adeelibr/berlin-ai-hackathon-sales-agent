@@ -56,6 +56,16 @@ export type Database = {
       campaigns: {
         Row: {
           brief: string
+          company_industry: string
+          company_linkedin: string
+          company_logo_url: string | null
+          company_name: string
+          company_tagline: string
+          company_target_customer: string
+          company_twitter: string
+          company_value_prop: string
+          company_website: string
+          company_what_we_do: string
           created_at: string
           id: string
           name: string
@@ -67,6 +77,16 @@ export type Database = {
         }
         Insert: {
           brief?: string
+          company_industry?: string
+          company_linkedin?: string
+          company_logo_url?: string | null
+          company_name?: string
+          company_tagline?: string
+          company_target_customer?: string
+          company_twitter?: string
+          company_value_prop?: string
+          company_website?: string
+          company_what_we_do?: string
           created_at?: string
           id?: string
           name?: string
@@ -78,6 +98,16 @@ export type Database = {
         }
         Update: {
           brief?: string
+          company_industry?: string
+          company_linkedin?: string
+          company_logo_url?: string | null
+          company_name?: string
+          company_tagline?: string
+          company_target_customer?: string
+          company_twitter?: string
+          company_value_prop?: string
+          company_website?: string
+          company_what_we_do?: string
           created_at?: string
           id?: string
           name?: string
@@ -96,57 +126,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      company_profile: {
-        Row: {
-          created_at: string
-          id: string
-          industry: string
-          linkedin: string
-          logo_url: string | null
-          name: string
-          tagline: string
-          target_customer: string
-          twitter: string
-          updated_at: string
-          user_id: string
-          value_prop: string
-          website: string
-          what_we_do: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          industry?: string
-          linkedin?: string
-          logo_url?: string | null
-          name?: string
-          tagline?: string
-          target_customer?: string
-          twitter?: string
-          updated_at?: string
-          user_id: string
-          value_prop?: string
-          website?: string
-          what_we_do?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          industry?: string
-          linkedin?: string
-          logo_url?: string | null
-          name?: string
-          tagline?: string
-          target_customer?: string
-          twitter?: string
-          updated_at?: string
-          user_id?: string
-          value_prop?: string
-          website?: string
-          what_we_do?: string
-        }
-        Relationships: []
       }
       flows: {
         Row: {
