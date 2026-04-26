@@ -86,127 +86,148 @@ Rules:
           content: message.content,
         }));
 
-  return generateOpenAIText({
-    apiKey,
-    instructions,
-    messages,
-    temperature: 0.7,
-  });
+  const startedAt = Date.now();
+  try {
+    return await generateOpenAIText({
+      apiKey,
+      instructions,
+      messages,
+      temperature: 0.7,
+    });
+  } finally {
+    logLatency("openai.reply", startedAt, {
+      historyTurns: data.history.length,
+    });
+  }
 }
 
 export async function synthesizeSpeech(data: { text: string; voiceId?: string }) {
   const apiKey = process.env.GRADIUM_API_KEY;
   if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
   const voice = data.voiceId || DEFAULT_GRADIUM_VOICE;
+  const startedAt = Date.now();
 
-  const res = await fetch("https://api.gradium.ai/api/post/speech/tts", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text: data.text,
-      voice_id: voice,
-      output_format: "wav",
-      only_audio: true,
-    }),
-  });
+  try {
+    const res = await fetch("https://api.gradium.ai/api/post/speech/tts", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: data.text,
+        voice_id: voice,
+        output_format: "wav",
+        only_audio: true,
+      }),
+    });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Gradium TTS error ${res.status}: ${text.slice(0, 200)}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Gradium TTS error ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    return {
+      audioBase64: bytesToBase64(new Uint8Array(await res.arrayBuffer())),
+      mime: "audio/wav",
+    };
+  } finally {
+    logLatency("gradium.tts", startedAt, {
+      textChars: data.text.length,
+    });
   }
-
-  return {
-    audioBase64: bytesToBase64(new Uint8Array(await res.arrayBuffer())),
-    mime: "audio/wav",
-  };
 }
 
 export async function transcribeAudio(data: { audioBase64: string }) {
   const apiKey = process.env.GRADIUM_API_KEY;
   if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
+  const startedAt = Date.now();
 
-  if (isNodeRuntime()) {
-    return transcribeAudioInNode({ apiKey, audioBase64: data.audioBase64 });
-  }
+  try {
+    if (isNodeRuntime()) {
+      return await transcribeAudioInNode({ apiKey, audioBase64: data.audioBase64 });
+    }
 
-  const transcript = await new Promise<string>((resolve, reject) => {
-    const parts: string[] = [];
-    let settled = false;
-    let ws: WebSocket | null = null;
-    const finish = (err: Error | null) => {
-      if (settled) return;
-      settled = true;
-      try {
-        ws?.close();
-      } catch {
-        // ignore close errors
-      }
-      if (err) reject(err);
-      else resolve(parts.join(" ").replace(/\s+/g, " ").trim());
-    };
-
-    const timeout = setTimeout(() => finish(new Error("STT timeout")), 60_000);
-
-    (async () => {
-      try {
-        const upgradeRes = await fetch("https://api.gradium.ai/api/speech/asr", {
-          headers: {
-            Upgrade: "websocket",
-            "x-api-key": apiKey,
-          },
-        });
-        const sock = (upgradeRes as unknown as { webSocket?: WebSocket }).webSocket;
-        if (!sock) {
-          clearTimeout(timeout);
-          finish(new Error(`Gradium WS handshake failed (${upgradeRes.status})`));
-          return;
+    const transcript = await new Promise<string>((resolve, reject) => {
+      const parts: string[] = [];
+      let settled = false;
+      let ws: WebSocket | null = null;
+      const finish = (err: Error | null) => {
+        if (settled) return;
+        settled = true;
+        try {
+          ws?.close();
+        } catch {
+          // ignore close errors
         }
-        ws = sock;
-        (sock as unknown as { accept: () => void }).accept();
+        if (err) reject(err);
+        else resolve(parts.join(" ").replace(/\s+/g, " ").trim());
+      };
 
-        sock.addEventListener("message", (event: MessageEvent) => {
-          const raw = typeof event.data === "string" ? event.data : "";
-          if (!raw) return;
-          let message: { type?: string; text?: string; message?: string };
-          try {
-            message = JSON.parse(raw);
-          } catch {
+      const timeout = setTimeout(() => finish(new Error("STT timeout")), 60_000);
+
+      (async () => {
+        try {
+          const upgradeRes = await fetch("https://api.gradium.ai/api/speech/asr", {
+            headers: {
+              Upgrade: "websocket",
+              "x-api-key": apiKey,
+            },
+          });
+          const sock = (upgradeRes as unknown as { webSocket?: WebSocket }).webSocket;
+          if (!sock) {
+            clearTimeout(timeout);
+            finish(new Error(`Gradium WS handshake failed (${upgradeRes.status})`));
             return;
           }
-          if (message.type === "ready") {
-            sock.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
-            sock.send(JSON.stringify({ type: "end_of_stream" }));
-          } else if (message.type === "text" && typeof message.text === "string") {
-            parts.push(message.text);
-          } else if (message.type === "end_of_stream") {
+          ws = sock;
+          (sock as unknown as { accept: () => void }).accept();
+
+          sock.addEventListener("message", (event: MessageEvent) => {
+            const raw = typeof event.data === "string" ? event.data : "";
+            if (!raw) return;
+            let message: { type?: string; text?: string; message?: string };
+            try {
+              message = JSON.parse(raw);
+            } catch {
+              return;
+            }
+            if (message.type === "ready") {
+              sock.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
+              sock.send(JSON.stringify({ type: "end_of_stream" }));
+            } else if (message.type === "text" && typeof message.text === "string") {
+              parts.push(message.text);
+            } else if (message.type === "end_of_stream") {
+              clearTimeout(timeout);
+              finish(null);
+            } else if (message.type === "error") {
+              clearTimeout(timeout);
+              finish(new Error(message.message || "Gradium STT error"));
+            }
+          });
+          sock.addEventListener("close", () => {
             clearTimeout(timeout);
             finish(null);
-          } else if (message.type === "error") {
+          });
+          sock.addEventListener("error", () => {
             clearTimeout(timeout);
-            finish(new Error(message.message || "Gradium STT error"));
-          }
-        });
-        sock.addEventListener("close", () => {
-          clearTimeout(timeout);
-          finish(null);
-        });
-        sock.addEventListener("error", () => {
-          clearTimeout(timeout);
-          finish(new Error("Gradium WebSocket error"));
-        });
+            finish(new Error("Gradium WebSocket error"));
+          });
 
-        sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
-      } catch (error) {
-        clearTimeout(timeout);
-        finish(error instanceof Error ? error : new Error("Gradium WS connect failed"));
-      }
-    })();
-  });
+          sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
+        } catch (error) {
+          clearTimeout(timeout);
+          finish(error instanceof Error ? error : new Error("Gradium WS connect failed"));
+        }
+      })();
+    });
 
-  return { transcript };
+    return { transcript };
+  } finally {
+    logLatency("gradium.stt", startedAt, {
+      audioBase64Chars: data.audioBase64.length,
+    });
+  }
 }
 
 async function transcribeAudioInNode(data: { apiKey: string; audioBase64: string }) {
@@ -348,6 +369,7 @@ export async function generateSalesReport(data: { transcript: string }) {
     ],
   };
 
+  const startedAt = Date.now();
   const text = await generateOpenAIText({
     apiKey,
     instructions,
@@ -365,6 +387,9 @@ export async function generateSalesReport(data: { transcript: string }) {
       strict: true,
       description: "Structured sales call report for a head of sales.",
     },
+  });
+  logLatency("openai.report", startedAt, {
+    transcriptChars: data.transcript.length,
   });
 
   try {
@@ -505,4 +530,11 @@ function buildOpenAIInputMessage(message: OpenAIMessage) {
           },
     ],
   };
+}
+
+function logLatency(label: string, startedAt: number, metadata?: Record<string, unknown>) {
+  console.info("[latency]", label, {
+    durationMs: Date.now() - startedAt,
+    ...metadata,
+  });
 }

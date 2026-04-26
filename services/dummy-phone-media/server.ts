@@ -598,6 +598,7 @@ async function handleTwilioStopMessage(session: TwilioSession) {
 }
 
 async function processTwilioUtterance(session: TwilioSession, utterance: Uint8Array) {
+  const startedAt = Date.now();
   try {
     const { transcript } = await transcribeAudio({
       audioBase64: rawMulawBytesToGradiumWavBase64(utterance),
@@ -622,6 +623,11 @@ async function processTwilioUtterance(session: TwilioSession, utterance: Uint8Ar
       session,
       error instanceof Error ? error.message : "Provider failure during Twilio conversation",
     );
+  } finally {
+    logLatency("twilio.turn.total", startedAt, {
+      runId: session.runId,
+      frames: utterance.length,
+    });
   }
 }
 
@@ -809,6 +815,7 @@ async function handleDummyIncomingAudio(
     }
 
     call.processingTurn = true;
+    const turnStartedAt = Date.now();
     try {
       const resampled = resamplePcm16(utterance, call.captureRate, 24_000);
       const wavBytes = encodePcm16Wav(resampled, 24_000);
@@ -835,6 +842,11 @@ async function handleDummyIncomingAudio(
         error instanceof Error ? error.message : "Turn processing failed",
       );
     } finally {
+      logLatency("dummy.turn.total", turnStartedAt, {
+        runId: call.runId,
+        callId: call.id,
+        utteranceMs: Math.round((utterance.length / call.captureRate) * 1000),
+      });
       call.processingTurn = false;
     }
   }
@@ -843,6 +855,7 @@ async function handleDummyIncomingAudio(
 async function startDummyGreeting(call: DummyCallSession) {
   if (call.greetingStarted || call.ended) return;
   call.greetingStarted = true;
+  const startedAt = Date.now();
 
   try {
     const greeting = await generateAgentReply({
@@ -856,6 +869,11 @@ async function startDummyGreeting(call: DummyCallSession) {
   } catch (error) {
     console.error("[dummy-phone-media] greeting failed", error);
     await endDummyCall(call, "failed", error instanceof Error ? error.message : "Greeting failed");
+  } finally {
+    logLatency("dummy.greeting.total", startedAt, {
+      runId: call.runId,
+      callId: call.id,
+    });
   }
 }
 
@@ -1015,6 +1033,13 @@ function concatInt16Chunks(chunks: Int16Array[]) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function logLatency(label: string, startedAt: number, metadata?: Record<string, unknown>) {
+  console.info("[latency]", label, {
+    durationMs: Date.now() - startedAt,
+    ...metadata,
+  });
 }
 
 function encodePcm16Wav(samples: Int16Array, sampleRate: number) {
