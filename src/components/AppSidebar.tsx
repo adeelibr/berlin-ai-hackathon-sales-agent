@@ -2,9 +2,9 @@ import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
-  Users,
   UserSquare2,
   Megaphone,
+  FileText,
   LogOut,
 } from "lucide-react";
 import {
@@ -22,24 +22,27 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 
-type Counts = { leads: number; personas: number; campaigns: number };
+type Counts = { transcripts: number; personas: number; campaigns: number };
 
 function useSidebarCounts() {
   const { user } = useAuth();
-  const [counts, setCounts] = useState<Counts>({ leads: 0, personas: 0, campaigns: 0 });
+  const [counts, setCounts] = useState<Counts>({ transcripts: 0, personas: 0, campaigns: 0 });
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     const load = async () => {
-      const [l, p, c] = await Promise.all([
-        supabase.from("leads").select("id", { count: "exact", head: true }),
+      const [t, p, c] = await Promise.all([
+        supabase
+          .from("runs")
+          .select("id", { count: "exact", head: true })
+          .not("transcript", "is", null),
         supabase.from("sales_personas").select("id", { count: "exact", head: true }),
         supabase.from("campaigns").select("id", { count: "exact", head: true }),
       ]);
       if (cancelled) return;
       setCounts({
-        leads: l.count ?? 0,
+        transcripts: t.count ?? 0,
         personas: p.count ?? 0,
         campaigns: c.count ?? 0,
       });
@@ -47,7 +50,7 @@ function useSidebarCounts() {
     load();
     const ch = supabase
       .channel("sidebar-counts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "runs" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "campaigns" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "sales_personas" }, load)
       .subscribe();
@@ -70,9 +73,9 @@ export function AppSidebar() {
 
   const workspace: NavItem[] = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/leads", label: "Leads", icon: Users, count: counts.leads },
     { to: "/personas", label: "Sales personas", icon: UserSquare2, count: counts.personas },
     { to: "/campaigns", label: "Campaigns", icon: Megaphone, count: counts.campaigns },
+    { to: "/transcripts", label: "Transcripts", icon: FileText, count: counts.transcripts },
   ];
   const isActive = (to: string) => location.pathname === to || location.pathname.startsWith(to + "/");
 

@@ -9,9 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TranscriptsRouteImport } from './routes/transcripts'
 import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +19,11 @@ import { Route as RunsRunIdRouteImport } from './routes/runs.$runId'
 import { Route as FlowsFlowIdRouteImport } from './routes/flows.$flowId'
 import { Route as ConversationsRunIdRouteImport } from './routes/conversations.$runId'
 
+const TranscriptsRoute = TranscriptsRouteImport.update({
+  id: '/transcripts',
+  path: '/transcripts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PersonasRoute = PersonasRouteImport.update({
   id: '/personas',
   path: '/personas',
@@ -27,11 +32,6 @@ const PersonasRoute = PersonasRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeadsRoute = LeadsRouteImport.update({
-  id: '/leads',
-  path: '/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -69,9 +69,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/campaigns': typeof CampaignsRoute
   '/dashboard': typeof DashboardRoute
-  '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
   '/personas': typeof PersonasRoute
+  '/transcripts': typeof TranscriptsRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/runs/$runId': typeof RunsRunIdRoute
@@ -80,9 +80,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/campaigns': typeof CampaignsRoute
   '/dashboard': typeof DashboardRoute
-  '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
   '/personas': typeof PersonasRoute
+  '/transcripts': typeof TranscriptsRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/runs/$runId': typeof RunsRunIdRoute
@@ -92,9 +92,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/campaigns': typeof CampaignsRoute
   '/dashboard': typeof DashboardRoute
-  '/leads': typeof LeadsRoute
   '/login': typeof LoginRoute
   '/personas': typeof PersonasRoute
+  '/transcripts': typeof TranscriptsRoute
   '/conversations/$runId': typeof ConversationsRunIdRoute
   '/flows/$flowId': typeof FlowsFlowIdRoute
   '/runs/$runId': typeof RunsRunIdRoute
@@ -105,9 +105,9 @@ export interface FileRouteTypes {
     | '/'
     | '/campaigns'
     | '/dashboard'
-    | '/leads'
     | '/login'
     | '/personas'
+    | '/transcripts'
     | '/conversations/$runId'
     | '/flows/$flowId'
     | '/runs/$runId'
@@ -116,9 +116,9 @@ export interface FileRouteTypes {
     | '/'
     | '/campaigns'
     | '/dashboard'
-    | '/leads'
     | '/login'
     | '/personas'
+    | '/transcripts'
     | '/conversations/$runId'
     | '/flows/$flowId'
     | '/runs/$runId'
@@ -127,9 +127,9 @@ export interface FileRouteTypes {
     | '/'
     | '/campaigns'
     | '/dashboard'
-    | '/leads'
     | '/login'
     | '/personas'
+    | '/transcripts'
     | '/conversations/$runId'
     | '/flows/$flowId'
     | '/runs/$runId'
@@ -139,9 +139,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CampaignsRoute: typeof CampaignsRoute
   DashboardRoute: typeof DashboardRoute
-  LeadsRoute: typeof LeadsRoute
   LoginRoute: typeof LoginRoute
   PersonasRoute: typeof PersonasRoute
+  TranscriptsRoute: typeof TranscriptsRoute
   ConversationsRunIdRoute: typeof ConversationsRunIdRoute
   FlowsFlowIdRoute: typeof FlowsFlowIdRoute
   RunsRunIdRoute: typeof RunsRunIdRoute
@@ -149,6 +149,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transcripts': {
+      id: '/transcripts'
+      path: '/transcripts'
+      fullPath: '/transcripts'
+      preLoaderRoute: typeof TranscriptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/personas': {
       id: '/personas'
       path: '/personas'
@@ -161,13 +168,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leads': {
-      id: '/leads'
-      path: '/leads'
-      fullPath: '/leads'
-      preLoaderRoute: typeof LeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -219,9 +219,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CampaignsRoute: CampaignsRoute,
   DashboardRoute: DashboardRoute,
-  LeadsRoute: LeadsRoute,
   LoginRoute: LoginRoute,
   PersonasRoute: PersonasRoute,
+  TranscriptsRoute: TranscriptsRoute,
   ConversationsRunIdRoute: ConversationsRunIdRoute,
   FlowsFlowIdRoute: FlowsFlowIdRoute,
   RunsRunIdRoute: RunsRunIdRoute,
