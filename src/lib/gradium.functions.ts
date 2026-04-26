@@ -91,15 +91,36 @@ export const gradiumSTT = createServerFn({ method: "POST" })
     const t0 = Date.now();
 
     try {
+      // Cloudflare Workers' WebSocket constructor does NOT support custom
+      // headers — `new WebSocket(url, opts)` treats the 2nd arg as protocols
+      // and throws "protocol header token is invalid" on objects. The only
+      // supported way to add custom headers (Gradium's x-api-key) on Workers
+      // is `fetch()` with `Upgrade: websocket`, then read `response.webSocket`.
+      const upgrade = await fetch("https://api.gradium.ai/api/speech/asr", {
+        method: "GET",
+        headers: {
+          Upgrade: "websocket",
+          "x-api-key": apiKey,
+        },
+      });
+      const sock = (upgrade as unknown as { webSocket?: WebSocket }).webSocket;
+      if (!sock) {
+        const body = await upgrade.text().catch(() => "");
+        console.error(`[gradiumSTT] upgrade failed: ${upgrade.status} ${body.slice(0, 200)}`);
+        return { transcript: "", error: `Gradium rejected the connection (${upgrade.status}).` };
+      }
+      // Workers requires accept() before sending/receiving.
+      try { (sock as unknown as { accept: () => void }).accept(); } catch { /* non-Workers runtime */ }
+
       const transcript = await new Promise<string>((resolve, reject) => {
       const parts: string[] = [];
       let settled = false;
-      let ws: WebSocket | null = null;
+      const ws: WebSocket = sock;
       let receivedReady = false;
       const finish = (err: Error | null) => {
         if (settled) return;
         settled = true;
-        try { ws?.close(); } catch { /* ignore */ }
+        try { ws.close(); } catch { /* ignore */ }
         if (err) reject(err);
         else resolve(parts.join(" ").replace(/\s+/g, " ").trim());
       };
@@ -110,42 +131,15 @@ export const gradiumSTT = createServerFn({ method: "POST" })
       }, 60_000);
 
       try {
-        // Cloudflare Workers' WebSocket constructor doesn't support custom
-        // headers — `new WebSocket(url, opts)` treats the 2nd arg as protocols
-        // and throws "protocol header token is invalid" on objects.
-        // The only supported way to add custom headers (like Gradium's
-        // x-api-key auth) is via `fetch()` with `Upgrade: websocket`.
-        const upgrade = await fetch("https://api.gradium.ai/api/speech/asr", {
-          method: "GET",
-          headers: {
-            Upgrade: "websocket",
-            "x-api-key": apiKey,
-          },
-        });
-        const sock = (upgrade as unknown as { webSocket?: WebSocket }).webSocket;
-        if (!sock) {
-          clearTimeout(timeout);
-          finish(new Error(`Gradium upgrade failed: ${upgrade.status} ${await upgrade.text().catch(() => "")}`));
-          return;
-        }
-        // Workers requires accept() before sending/receiving.
-        (sock as unknown as { accept: () => void }).accept();
-        ws = sock;
-
-        sock.addEventListener("open", () => {
-          console.info("[gradiumSTT] WS open — sending setup");
-          sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
-        });
-        // Workers WS that came from fetch() is already "open" — no open event fires.
-        // Send setup immediately.
+        // WS is already open after fetch() upgrade — send setup immediately.
         try {
           console.info("[gradiumSTT] WS upgraded — sending setup");
-          sock.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
+          ws.send(JSON.stringify({ type: "setup", model_name: "default", input_format: "wav" }));
         } catch (e) {
           console.error(`[gradiumSTT] failed to send setup: ${e instanceof Error ? e.message : String(e)}`);
         }
 
-        sock.addEventListener("message", (ev: MessageEvent) => {
+        ws.addEventListener("message", (ev: MessageEvent) => {
           const raw = typeof ev.data === "string" ? ev.data : "";
           if (!raw) return;
           let msg: { type?: string; text?: string; message?: string; code?: number };
@@ -156,8 +150,8 @@ export const gradiumSTT = createServerFn({ method: "POST" })
           if (msg.type === "ready") {
             receivedReady = true;
             console.info("[gradiumSTT] ready — sending audio + end_of_stream");
-            sock.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
-            sock.send(JSON.stringify({ type: "end_of_stream" }));
+            ws.send(JSON.stringify({ type: "audio", audio: data.audioBase64 }));
+            ws.send(JSON.stringify({ type: "end_of_stream" }));
           } else if (msg.type === "text" && typeof msg.text === "string") {
             parts.push(msg.text);
           } else if (msg.type === "end_of_stream") {
@@ -170,7 +164,7 @@ export const gradiumSTT = createServerFn({ method: "POST" })
             finish(new Error(msg.message || "Gradium STT error"));
           }
         });
-        sock.addEventListener("close", (ev: CloseEvent) => {
+        ws.addEventListener("close", (ev: CloseEvent) => {
           clearTimeout(timeout);
           console.info(`[gradiumSTT] WS closed — code=${ev.code} reason="${ev.reason}" ready=${receivedReady} parts=${parts.length}`);
           if (!receivedReady && ev.code === 1008) {
@@ -179,7 +173,7 @@ export const gradiumSTT = createServerFn({ method: "POST" })
             finish(null);
           }
         });
-        sock.addEventListener("error", (ev: Event) => {
+        ws.addEventListener("error", (ev: Event) => {
           clearTimeout(timeout);
           const msg = (ev as unknown as { message?: string }).message ?? "WebSocket error";
           console.error(`[gradiumSTT] WS error: ${msg}`);
@@ -188,8 +182,8 @@ export const gradiumSTT = createServerFn({ method: "POST" })
       } catch (e) {
         clearTimeout(timeout);
         const msg = e instanceof Error ? e.message : String(e);
-        console.error(`[gradiumSTT] WS connect threw: ${msg}`);
-        finish(new Error(`Could not open Gradium WebSocket: ${msg}`));
+        console.error(`[gradiumSTT] WS wiring threw: ${msg}`);
+        finish(new Error(`Gradium WebSocket error: ${msg}`));
       }
     });
 
