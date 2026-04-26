@@ -11,21 +11,21 @@ Built at the **Big Berlin Hack** (Berlin AI Hackathon, hosted by The Delta Campu
 ## How it works
 
 <!-- TODO: add hero / product screenshot here -->
-`![Stillwater overview](docs/images/overview.png)`
+`![Logo](docs/images/logo.png)`
 
 1. **Create a campaign.** Each campaign represents one company / one offer. You fill in your company identity (name, tagline, what you do, value prop, target customer, logo) and the talking points you want the agent to hit.
    <!-- TODO: screenshot of the campaign editor -->
-   `![Campaign editor](docs/images/campaign-editor.png)`
+   `![Campaign editor](docs/images/campaigns.png)`
 
 2. **Pick a sales persona.** Personas are reusable AI sellers, each with their own personality, prompt, and **voice**. Stillwater seeds a few defaults (e.g. consultative, energetic, technical) and you can edit any of them — including swapping the voice — from the Personas page.
    <!-- TODO: screenshot of the personas page -->
-   `![Sales personas](docs/images/personas.png)`
+   `![Sales personas](docs/images/sales-personas.png)`
 
 3. **Add leads.** Import or create leads (name, company, phone, notes) and attach them to a campaign.
    <!-- TODO: screenshot of the leads page -->
    `![Leads](docs/images/leads.png)`
 
-4. **Run the call.** Stillwater opens a live conversation: the agent speaks first using the persona's voice, listens to the prospect through the browser mic, transcribes via the Gradium speech API, and replies in real time using a system prompt hydrated from the campaign's company context.
+4. **Run the call.** Stillwater opens a live conversation: the agent speaks first using the persona's voice, listens to the prospect through the browser mic, transcribes via the Gradium speech API, and replies in real time using a system prompt hydrated from the campaign's company context. In the future Stillwater will directly use the Twilio API to make cold calls to each individual lead.
    <!-- TODO: screenshot of an active conversation -->
    `![Live conversation](docs/images/conversation.png)`
 
@@ -179,6 +179,13 @@ Stillwater was built at the **Big Berlin Hack** (Donaustraße 44, Berlin) by:
 - **Benedict**
 - **roshanbhaskar**
 - **gul**
+
+| Name | Links |
+| ----- | ----- |
+| Adeel | [LinkedIn](https://www.linkedin.com/in/adeelimran/) · [GitHub](#) |
+| Gul | [LinkedIn](#) · [GitHub](#) |
+| Benedict | [LinkedIn](https://www.linkedin.com/in/benedict-seuss/) · [GitHub](#) |
+| Roshan | [LinkedIn](https://www.linkedin.com/in/roshanbhaskar/) · [GitHub](#) |
 
 ### Partner technologies used
 
