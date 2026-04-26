@@ -6,9 +6,6 @@ import {
   Building2,
   UserSquare2,
   Megaphone,
-  Workflow,
-  MessagesSquare,
-  Settings,
   LogOut,
 } from "lucide-react";
 import {
@@ -79,9 +76,6 @@ export function AppSidebar() {
     { to: "/personas", label: "Sales personas", icon: UserSquare2, count: counts.personas },
     { to: "/campaigns", label: "Campaigns", icon: Megaphone, count: counts.campaigns },
   ];
-  const operate: NavItem[] = [
-    { to: "/dashboard", label: "Flows", icon: Workflow },
-  ];
   const isActive = (to: string) => location.pathname === to || location.pathname.startsWith(to + "/");
 
   const renderItem = (item: NavItem) => {
@@ -129,62 +123,6 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>{workspace.map(renderItem)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/80">
-            Operate
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location.pathname === "/dashboard"}>
-                  <Link
-                    to="/dashboard"
-                    className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                  >
-                    <span className="h-1 w-1 rounded-full bg-border group-hover:bg-muted-foreground/60" aria-hidden />
-                    <Workflow className="h-3.5 w-3.5 opacity-70" />
-                    <span className="flex-1 truncate">Flows</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link
-                    to="/dashboard"
-                    className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                  >
-                    <span className="h-1 w-1 rounded-full bg-border group-hover:bg-muted-foreground/60" aria-hidden />
-                    <MessagesSquare className="h-3.5 w-3.5 opacity-70" />
-                    <span className="flex-1 truncate">Conversations</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/80">
-            System
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link
-                    to="/company"
-                    className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                  >
-                    <span className="h-1 w-1 rounded-full bg-border group-hover:bg-muted-foreground/60" aria-hidden />
-                    <Settings className="h-3.5 w-3.5 opacity-70" />
-                    <span className="flex-1 truncate">Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
