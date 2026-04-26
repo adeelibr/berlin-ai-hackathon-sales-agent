@@ -57,9 +57,12 @@ export const gradiumSTT = createServerFn({ method: "POST" })
   .inputValidator((data: { audioBase64: string }) => data)
   .handler(async ({ data }) => {
     const apiKey = process.env.GRADIUM_API_KEY;
-    if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
+    if (!apiKey) {
+      return { transcript: "", error: "GRADIUM_API_KEY not configured" };
+    }
 
-    const transcript = await new Promise<string>((resolve, reject) => {
+    try {
+      const transcript = await new Promise<string>((resolve, reject) => {
       const parts: string[] = [];
       let settled = false;
       let ws: WebSocket | null = null;
@@ -128,7 +131,12 @@ export const gradiumSTT = createServerFn({ method: "POST" })
       })();
     });
 
-    return { transcript };
+      return { transcript, error: null as string | null };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Speech recognition failed";
+      console.error("[gradiumSTT] failed:", message);
+      return { transcript: "", error: message };
+    }
   });
 
 /**
