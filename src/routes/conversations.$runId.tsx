@@ -8,6 +8,7 @@ import { ArrowLeft, Mic, MicOff, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { gradiumTTS, gradiumSTT, agentReply } from "@/lib/gradium.functions";
+import { authHeaders } from "@/lib/server-fn-auth";
 
 export const Route = createFileRoute("/conversations/$runId")({
   component: () => <AuthGuard><Conversation /></AuthGuard>,
@@ -92,7 +93,8 @@ function Conversation() {
     setPhase("agent_speaking");
     setStatusText("Agent speaking…");
     const { audioBase64, mime } = await ttsFn({
-      data: { text, personaId: personaId ?? undefined, userId: user?.id },
+      data: { text, personaId: personaId ?? undefined },
+      headers: await authHeaders(),
     });
     const bin = atob(audioBase64);
     const bytes = new Uint8Array(bin.length);
@@ -106,7 +108,7 @@ function Conversation() {
       audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
       audio.play().catch(() => resolve());
     });
-  }, [ttsFn, personaId, user?.id]);
+  }, [ttsFn, personaId]);
 
   // Append a turn locally + persist transcript
   const persistTurn = useCallback(async (turn: Turn, full: Turn[]) => {
@@ -119,7 +121,10 @@ function Conversation() {
   const startGreeting = useCallback(async () => {
     if (!flowCtx) return;
     try {
-      const { text } = await aiFn({ data: { ...flowCtx, userId: user?.id, history: [], nextRole: "assistant" } });
+      const { text } = await aiFn({
+        data: { ...flowCtx, history: [], nextRole: "assistant" },
+        headers: await authHeaders(),
+      });
       const turn: Turn = { role: "assistant", content: text };
       const next = [turn];
       await persistTurn(turn, next);
@@ -130,7 +135,7 @@ function Conversation() {
       toast.error(e instanceof Error ? e.message : "Agent failed");
       setPhase("ready");
     }
-  }, [flowCtx, aiFn, speak, persistTurn, user?.id]);
+  }, [flowCtx, aiFn, speak, persistTurn]);
 
   useEffect(() => {
     if (phase === "ready" && history.length === 0 && flowCtx) {
@@ -216,7 +221,7 @@ function Conversation() {
 
       const sttStart = performance.now();
       console.info("[conversation] → gradiumSTT");
-      const sttResult = await sttFn({ data: { audioBase64 } });
+      const sttResult = await sttFn({ data: { audioBase64 }, headers: await authHeaders() });
       console.info(`[conversation] ← gradiumSTT (${Math.round(performance.now() - sttStart)}ms)`, sttResult);
       if (sttResult.error) {
         console.error("[conversation] STT error:", sttResult.error);
@@ -242,7 +247,8 @@ function Conversation() {
       const aiStart = performance.now();
       console.info("[conversation] → agentReply");
       const { text: replyText } = await aiFn({
-        data: { ...flowCtx!, userId: user?.id, history: afterUser, nextRole: "assistant" },
+        data: { ...flowCtx!, history: afterUser, nextRole: "assistant" },
+        headers: await authHeaders(),
       });
       console.info(`[conversation] ← agentReply (${Math.round(performance.now() - aiStart)}ms): "${replyText.slice(0, 80)}${replyText.length > 80 ? "…" : ""}"`);
 
