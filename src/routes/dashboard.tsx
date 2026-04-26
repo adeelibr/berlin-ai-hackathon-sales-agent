@@ -11,6 +11,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 type Lead = { id: string; status: string; created_at: string };
+type Campaign = { id: string; status: string };
 type LiveRun = {
   id: string;
   status: string;
@@ -32,6 +33,7 @@ function Dashboard() {
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState<string>("");
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const [liveCampaign, setLiveCampaign] = useState<string>("");
   const [livePersona, setLivePersona] = useState<string>("");
@@ -42,14 +44,16 @@ function Dashboard() {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const [profileRes, leadsRes, runRes] = await Promise.all([
+      const [profileRes, leadsRes, campaignsRes, runRes] = await Promise.all([
         supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
         supabase.from("leads").select("id,status,created_at").order("created_at", { ascending: false }),
+        supabase.from("campaigns").select("id,status"),
         supabase.from("runs").select("id,status,started_at,campaign_id,lead_id").eq("status", "active").order("started_at", { ascending: false }).limit(1),
       ]);
       if (cancelled) return;
       setDisplayName(profileRes.data?.display_name ?? user.email?.split("@")[0] ?? "");
       setLeads(leadsRes.data ?? []);
+      setCampaigns(campaignsRes.data ?? []);
       setLiveRun(runRes.data?.[0] ?? null);
       setLoading(false);
     })();
@@ -65,6 +69,10 @@ function Dashboard() {
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, async () => {
         const { data } = await supabase.from("leads").select("id,status,created_at").order("created_at", { ascending: false });
         if (data) setLeads(data);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "campaigns" }, async () => {
+        const { data } = await supabase.from("campaigns").select("id,status");
+        if (data) setCampaigns(data);
       })
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
@@ -99,10 +107,12 @@ function Dashboard() {
     const newThisWeek = leads.filter((l) => now - new Date(l.created_at).getTime() < 7 * 864e5).length;
     const contacted = leads.filter((l) => ["contacted", "qualified", "won"].includes(l.status)).length;
     const won = leads.filter((l) => l.status === "won").length;
-    return { total, newThisWeek, contacted, won };
-  }, [leads]);
+    const totalCampaigns = campaigns.length;
+    return { total, newThisWeek, contacted, won, totalCampaigns };
+  }, [leads, campaigns]);
 
   const cards: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; tone: string }[] = [
+    { label: "Campaigns", value: stats.totalCampaigns, icon: Megaphone, tone: "text-accent" },
     { label: "Total leads", value: stats.total, icon: Users, tone: "text-foreground" },
     { label: "New this week", value: stats.newThisWeek, icon: UserPlus, tone: "text-accent" },
     { label: "Contacted", value: stats.contacted, icon: Phone, tone: "text-foreground" },
@@ -121,8 +131,8 @@ function Dashboard() {
         </div>
 
         {/* Stat cards */}
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {(loading ? Array.from({ length: 4 }).map((_, i) => ({ label: "", value: 0, icon: Users, tone: "", _k: i })) : cards).map((c, i) => {
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {(loading ? Array.from({ length: 5 }).map((_, i) => ({ label: "", value: 0, icon: Users, tone: "", _k: i })) : cards).map((c, i) => {
             const Icon = c.icon;
             return (
               <div key={i} className="rounded-xl border border-border/60 bg-card/60 p-5" style={{ boxShadow: "var(--shadow-zen)" }}>
