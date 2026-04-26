@@ -208,7 +208,14 @@ function Conversation() {
       for (let i = 0; i < wavBuf.length; i += C) bin += String.fromCharCode(...wavBuf.subarray(i, i + C));
       const audioBase64 = btoa(bin);
 
-      const { transcript } = await sttFn({ data: { audioBase64 } });
+      const sttResult = await sttFn({ data: { audioBase64 } });
+      if (sttResult.error) {
+        toast.error(sttResult.error);
+        setPhase("ready");
+        setStatusText("Tap to talk");
+        return;
+      }
+      const transcript = sttResult.transcript;
       if (!transcript.trim()) {
         toast.message("Didn't catch that — try again");
         setPhase("ready");
