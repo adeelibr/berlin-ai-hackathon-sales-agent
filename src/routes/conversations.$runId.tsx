@@ -202,18 +202,24 @@ function Conversation() {
     });
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    console.info(`[conversation] recorded ${(stopped.size / 1024).toFixed(1)} KB (${stopped.type})`);
 
     try {
       const wav = await blobToWav24k(stopped);
       const wavBuf = new Uint8Array(await wav.arrayBuffer());
+      console.info(`[conversation] WAV ready: ${(wavBuf.length / 1024).toFixed(1)} KB`);
       // base64 encode
       let bin = "";
       const C = 0x8000;
       for (let i = 0; i < wavBuf.length; i += C) bin += String.fromCharCode(...wavBuf.subarray(i, i + C));
       const audioBase64 = btoa(bin);
 
+      const sttStart = performance.now();
+      console.info("[conversation] → gradiumSTT");
       const sttResult = await sttFn({ data: { audioBase64 } });
+      console.info(`[conversation] ← gradiumSTT (${Math.round(performance.now() - sttStart)}ms)`, sttResult);
       if (sttResult.error) {
+        console.error("[conversation] STT error:", sttResult.error);
         toast.error(sttResult.error);
         setPhase("ready");
         setStatusText("Tap to talk");
@@ -221,6 +227,7 @@ function Conversation() {
       }
       const transcript = sttResult.transcript;
       if (!transcript.trim()) {
+        console.warn("[conversation] empty transcript");
         toast.message("Didn't catch that — try again");
         setPhase("ready");
         setStatusText("Tap to talk");
@@ -232,9 +239,12 @@ function Conversation() {
       await persistTurn(userTurn, afterUser);
 
       setStatusText("Agent thinking…");
+      const aiStart = performance.now();
+      console.info("[conversation] → agentReply");
       const { text: replyText } = await aiFn({
         data: { ...flowCtx!, userId: user?.id, history: afterUser, nextRole: "assistant" },
       });
+      console.info(`[conversation] ← agentReply (${Math.round(performance.now() - aiStart)}ms): "${replyText.slice(0, 80)}${replyText.length > 80 ? "…" : ""}"`);
 
       const agentTurn: Turn = { role: "assistant", content: replyText };
       const afterAgent = [...afterUser, agentTurn];
@@ -244,6 +254,7 @@ function Conversation() {
       setPhase("ready");
       setStatusText("Tap to talk");
     } catch (e) {
+      console.error("[conversation] stopAndSend failed:", e);
       toast.error(e instanceof Error ? e.message : "Something went wrong");
       setPhase("ready");
       setStatusText("Tap to talk");
