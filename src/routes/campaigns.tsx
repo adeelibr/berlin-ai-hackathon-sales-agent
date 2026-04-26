@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell, AuthGuard } from "@/components/AppShell";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -12,7 +13,7 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Mic, Trash2, X } from "lucide-react";
+import { Plus, Mic, Trash2, X, Upload, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/campaigns")({
@@ -23,6 +24,10 @@ type Campaign = {
   id: string; name: string; persona_id: string | null;
   brief: string; talking_points: string[];
   status: "draft" | "running" | "paused"; updated_at: string;
+  company_name: string; company_tagline: string; company_industry: string;
+  company_website: string; company_linkedin: string; company_twitter: string;
+  company_what_we_do: string; company_value_prop: string; company_target_customer: string;
+  company_logo_url: string | null;
 };
 type Persona = { id: string; name: string; tagline: string; avatar_color: string };
 type Lead = { id: string; name: string; company: string; phone: string; status: string };
