@@ -320,6 +320,7 @@ export type Database = {
           tagline: string
           updated_at: string
           user_id: string
+          voice_id: string
         }
         Insert: {
           avatar_color?: string
@@ -335,6 +336,7 @@ export type Database = {
           tagline?: string
           updated_at?: string
           user_id: string
+          voice_id?: string
         }
         Update: {
           avatar_color?: string
@@ -350,6 +352,7 @@ export type Database = {
           tagline?: string
           updated_at?: string
           user_id?: string
+          voice_id?: string
         }
         Relationships: []
       }
