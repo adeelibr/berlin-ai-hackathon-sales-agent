@@ -4,7 +4,7 @@
 
 Stillwater is an AI-powered outbound sales platform that runs voice conversations with your leads on your behalf. You define a campaign (who you are, what you sell, who your customers are, what you want to talk about), pick a sales persona with its own voice, point it at a list of leads — and Stillwater handles the call, transcribes the conversation, and generates a structured report at the end.
 
-Built for the Berlin AI Hackathon.
+Built at the **Big Berlin Hack** (Berlin AI Hackathon, hosted by The Delta Campus & Code University of Applied Sciences).
 
 ---
 
@@ -37,6 +37,16 @@ Built for the Berlin AI Hackathon.
 
 ## Tech stack
 
+### Hackathon partner technologies (Big Berlin Hack)
+
+Stillwater is built on three official Big Berlin Hack partner technologies:
+
+- **[Lovable](https://lovable.dev)** — the entire app (frontend + backend scaffolding, auth, database, storage, server functions) is generated and iterated on inside Lovable. Lovable Cloud provides the managed Postgres + Auth + Storage + Edge Functions layer behind the scenes.
+- **[Gradium](https://gradium.ai)** — powers the realtime voice layer end-to-end: low-latency speech-to-text on the prospect's mic input, the conversational LLM that drives the sales agent, and natural text-to-speech for the agent's voice (each persona maps to a specific Gradium voice ID).
+- **[Google DeepMind — Gemini](https://ai.google.dev)** — used to generate the **structured sales report** at the end of every call. We call `gemini-2.5-flash` via the Generative Language API with a strict `responseSchema` and fully deterministic decoding (`temperature: 0`, `topP: 0`, `topK: 1`, fixed `seed`) so the same transcript always produces the same report.
+
+### Other libraries & tooling
+
 - **Framework:** [TanStack Start](https://tanstack.com/start) v1 (React 19 + SSR) on Vite 7
 - **Deploy target:** Cloudflare Workers (via `@cloudflare/vite-plugin` + `wrangler`)
 - **Routing:** TanStack Router (file-based, in `src/routes/`)
@@ -44,8 +54,7 @@ Built for the Berlin AI Hackathon.
 - **Styling:** Tailwind CSS v4 (configured via `src/styles.css`) + `tw-animate-css`
 - **UI primitives:** shadcn/ui on top of Radix UI, `lucide-react` icons, `sonner` for toasts
 - **Forms & validation:** `react-hook-form` + `zod` (`@hookform/resolvers`)
-- **Backend (Lovable Cloud / Supabase):** Postgres + Auth + Storage + Edge Functions, accessed via `@supabase/supabase-js`
-- **Voice / AI:** Gradium API for speech-to-text, text-to-speech, and the conversational LLM agent
+- **Database client:** `@supabase/supabase-js` (against the Lovable Cloud-managed Postgres)
 - **Language / tooling:** TypeScript (strict), ESLint, Prettier, Bun as the package manager
 
 ### Project structure
@@ -94,8 +103,9 @@ The backend schema (campaigns, leads, sales_personas, flows, runs, profiles, cam
 ### Prerequisites
 
 - [Bun](https://bun.sh) ≥ 1.1 (or Node ≥ 20 + npm/pnpm)
-- A Lovable Cloud project (auto-provisioned when you open the project in Lovable) **or** a self-hosted Supabase project
-- A [Gradium](https://gradium.ai) API key for voice + LLM
+- A **Lovable Cloud** project (auto-provisioned when you open the project in Lovable) **or** a self-hosted Supabase project
+- A **[Gradium](https://gradium.ai)** API key (voice + conversational LLM)
+- A **[Google AI Studio / Gemini](https://aistudio.google.com/apikey)** API key (post-call report generation)
 
 ### Install
 
@@ -118,12 +128,20 @@ VITE_SUPABASE_PUBLISHABLE_KEY="<anon-key>"
 VITE_SUPABASE_PROJECT_ID="<your-project-ref>"
 ```
 
-The Gradium API key is **not** stored in `.env` — it lives as a server-side secret in Lovable Cloud (so it never reaches the browser). To add it:
+Private API keys are **not** stored in `.env` — they live as server-side secrets in Lovable Cloud (so they never reach the browser). The app expects:
 
-- In Lovable: open **Connectors → Lovable Cloud → Secrets** and add a secret named `GRADIUM_API_KEY`.
-- Self-hosted Supabase: add `GRADIUM_API_KEY` to your edge function / server env.
+| Secret name        | Used for                                        |
+| ------------------ | ----------------------------------------------- |
+| `GRADIUM_API_KEY`  | Realtime voice (STT, TTS, agent LLM)            |
+| `GEMINI_API_KEY`   | Post-call structured sales report               |
+| `LOVABLE_API_KEY`  | Auto-managed by Lovable (AI gateway access)     |
 
-> ⚠️ Never put `GRADIUM_API_KEY` (or any private key) in a `VITE_*` variable — anything prefixed with `VITE_` is shipped to the client.
+To add them:
+
+- In Lovable: open **Connectors → Lovable Cloud → Secrets** and add the secret(s) above.
+- Self-hosted Supabase: add the same names to your edge function / server env.
+
+> ⚠️ Never put any private key in a `VITE_*` variable — anything prefixed with `VITE_` is shipped to the client.
 
 ### Run the dev server
 
@@ -155,18 +173,20 @@ bun run preview    # preview the production build locally
 
 ## About us
 
-<!-- TODO: paste team info here. Suggested format below — drop in names, roles, links, photos. -->
+Stillwater was built at the **Big Berlin Hack** (Donaustraße 44, Berlin) by:
 
-We are the team behind Stillwater, built during the Berlin AI Hackathon.
+- **Adeel**
+- **Benedict**
+- **roshanbhaskar**
+- **gul**
 
-| Photo | Name | Role | Links |
-| ----- | ---- | ---- | ----- |
-| `![](docs/images/team/member-1.png)` | _Name_ | _Role_ | [LinkedIn](#) · [GitHub](#) |
-| `![](docs/images/team/member-2.png)` | _Name_ | _Role_ | [LinkedIn](#) · [GitHub](#) |
-| `![](docs/images/team/member-3.png)` | _Name_ | _Role_ | [LinkedIn](#) · [GitHub](#) |
-| `![](docs/images/team/member-4.png)` | _Name_ | _Role_ | [LinkedIn](#) · [GitHub](#) |
+### Partner technologies used
 
-_(Replace this section with the team info you'll paste in.)_
+Per the hackathon rules (min. 3 partner technologies), Stillwater uses:
+
+1. **Lovable** — full-stack app builder + Lovable Cloud backend
+2. **Gradium** — realtime voice agent (STT, TTS, conversational LLM)
+3. **Google DeepMind — Gemini** — deterministic structured sales report generation
 
 ---
 
