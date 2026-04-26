@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "authenticated_can_subscribe_realtime" ON realtime.messages;
