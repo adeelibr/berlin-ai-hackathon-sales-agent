@@ -1,102 +1,96 @@
-# Hermozi Cold Call Flow — Hackathon Plan
+## Effort estimate
 
-A calm, zen marketing landing page that funnels into an authenticated dashboard where users build and run a fixed 5-node cold-call workflow. Each run uses a Hermozi-skilled AI agent to generate the script, makes the call via Telli, enhances audio in both directions with ai-coustics, and logs the result to the dashboard.
+**Roughly one focused build session — ~1.5 to 2 days of work, in 4 phases.** None of it is risky; it's mostly structural (new tables, new pages, a sidebar shell) on top of design tokens that already match the mockups (Fraunces serif, warm paper background, sage `--accent`, soft shadows). All three AI integrations (Gradium, Lovable, Gemini) keep working unchanged — they just get re-pointed at the new "Campaign" object instead of "Flow."
 
-## 1. Public landing page (`/`)
+The good news: zero of the actual voice/AI plumbing changes. `gradiumTTS`, `gradiumSTT`, `agentReply`, and `generateReport` server functions stay exactly as they are.
 
-A minimal, zen aesthetic — generous whitespace, soft neutral palette, one calm serif/sans pairing.
+---
 
-- **Hero**: short tagline ("Cold calls that close themselves."), one-line subtext, primary CTA → **Sign in / Get started**.
-- Subtle background motion (gentle gradient or particle drift), nothing busy.
-- Footer: built for Berlin AI Hackathon, links to login.
+## Phase 1 — App shell with sidebar (~2–3 hrs)
 
-## 2. Auth (`/login`)
+Replace the current top-bar `AppShell` with the left sidebar from the mockups.
 
-- Lovable Cloud email/password auth (no Google).
-- Sign up → auto-redirect to `/dashboard`.
-- Logged-in users hitting `/` get redirected to `/dashboard`.
+- New `src/components/AppSidebar.tsx` using shadcn's `Sidebar` primitive with three groups exactly as in the mockups:
+  - **Workspace** — Dashboard, Leads, Company, Sales personas, Campaigns
+  - **Operate** — Flows, Conversations
+  - **System** — Settings
+- Each item shows a small left "•" indicator dot; the active item gets the soft cream background pill (`bg-muted/60`) seen in the screenshots.
+- Top of sidebar: "● Stillwater" wordmark. Bottom: avatar + `mara@stillwater.so` + sign-out menu (replaces the current header sign-out).
+- Section labels use the existing `text-[10px] uppercase tracking-[0.2em] text-muted-foreground` pattern already in the codebase.
+- Update `src/components/AppShell.tsx` to wrap children in `SidebarProvider` + `<AppSidebar />` + main content area. Keep `AuthGuard` unchanged.
+- Counts next to "Leads (16)", "Sales personas (8)", "Campaigns (3)" come from a single `useSidebarCounts()` hook that does three lightweight `count` queries.
 
-## 3. Dashboard (`/dashboard`)
+## Phase 2 — Database changes (~30 min)
 
-The user's home after login.
+One migration adding the new entities. Existing `flows` and `runs` tables stay; `flows` becomes the "Operate → Flows" advanced view (unchanged), and `campaigns` becomes the new primary object.
 
-- **My Flows** list — cards showing each saved flow (name, last run, status).
-- "New Flow" button → creates a flow and opens the builder.
-- Recent runs feed at the bottom (last 10 calls across all flows with outcome chips).
+New tables (all with RLS `auth.uid() = user_id`, mirroring the existing pattern):
 
-## 4. Flow builder (`/flows/$flowId`)
+- **`company_profile`** — one row per user. Fields: `name`, `tagline`, `industry`, `website`, `linkedin`, `twitter`, `logo_url`, `what_we_do`, `value_prop`, `target_customer`. Powers the Company page; also feeds the agent's `whoWeAre` / `whatWeDo` automatically.
+- **`sales_personas`** — `id`, `user_id`, `key` (slug), `name`, `tagline` (e.g. "The patient questioner"), `description`, `best_for` (text[]), `prompt` (full system-prompt body), `avatar_color`, `is_default`. Seeded with the 8 personas from the mockup (Margot, Hideo, Soraya, Bram, Iris, Cyrus, Lena, Otto) on first sign-in via the existing `handle_new_user()` trigger.
+- **`leads`** — `id`, `user_id`, `name`, `company`, `phone`, `status` (`new` | `called` | `scheduled`), `notes`, `created_at`.
+- **`campaigns`** — `id`, `user_id`, `name`, `persona_id` (FK → sales_personas), `brief` (text), `talking_points` (text[]), `status` (`draft` | `running` | `paused`), `created_at`, `updated_at`.
+- **`campaign_leads`** — join table `campaign_id` ↔ `lead_id`.
+- Add `campaign_id` (nullable) and `lead_id` (nullable) to `runs` so a conversation can be attributed back to its campaign + lead.
 
-A clean canvas with the **5 fixed nodes** laid out left-to-right, connected by lines (visual only — no drag-and-drop, no add/remove). Click any node to open its config panel on the right.
+## Phase 3 — The five pages (~6–8 hrs total)
 
-| # | Node | Purpose | Config |
-|---|------|---------|--------|
-| 1 | **Who we are** | Your company context, saved per flow | Two free-text fields: "Who we are", "What we do" |
-| 2 | **Phone numbers** | Call targets | Single textarea, comma-separated E.164 numbers (e.g. `+4915112345678, +4915198765432`) |
-| 3 | **Hermozi knowledge** | Editable knowledge base injected into the agent | Large textarea pre-filled with curated Hermozi notes (Grand Slam Offer, value equation, hooks, CTA frameworks). User can edit/append. |
-| 4 | **Make the call** | Executes outbound call per number | Toggle for ai-coustics pre-call TTS enhancement, voice/language picker, hard 2-min cap (read-only) |
-| 5 | **Log result** | Stores transcript + outcome on dashboard | Auto-runs; no config |
+All pages reuse the existing typography/color system; they're mostly layout work.
 
-Top of the canvas: flow name (inline-editable), **Save**, and **Run flow** buttons.
+### 3a. `src/routes/dashboard.tsx` — replace current dashboard
+- "Good morning, Mara." (uses display_name from profile, time-of-day aware) + sub-line.
+- Four stat cards: **Total leads / New / Called / Scheduled** — all from `leads` count queries.
+- Two side-by-side cards: **"Three quiet things to do"** (derived: pending campaign drafts, unreviewed transcripts, campaigns missing a persona) and **"Now dialing"** (most recent active run with persona name + progress).
 
-## 5. Run execution
+### 3b. `src/routes/leads.tsx` — new
+- Header + "Add lead" button (opens dialog).
+- Search input + filter chips: **All / New / Called / Scheduled** with counts.
+- Numbered table rows (01, 02, …) with name, company, phone, status pill. Click a row to open a side panel with notes + "Assign to campaign" dropdown.
+- Status pills use existing tokens: `--node-running` (called/sage), `--node-idle` (new), warm beige for scheduled.
 
-Clicking **Run flow** kicks off this server-side pipeline for each phone number, with live per-node status (idle → running → done/error) on the canvas:
+### 3c. `src/routes/company.tsx` — new
+- Single long form, autosaves on blur with a "Saved · just now" indicator (top-right, exactly like the mockup).
+- Sections: **Identity** (name/tagline/industry/website/linkedin/twitter), **What we do**, **Value & customer** (value prop + target customer textareas).
+- Right rail: logo upload (uses the existing `cleaned-recordings` bucket pattern — add a new public `company-logos` bucket) + Quick links preview.
 
-1. **Node 1+3 → Hermozi agent**: A server function calls Lovable AI (`google/gemini-3-flash-preview`) with a system prompt built from "Who we are / What we do" + the Hermozi knowledge text. Output: a tight cold-call script + opening hook, capped to fit a 2-min call.
-2. **Node 4 pre-call**: Script is converted to TTS audio. If the ai-coustics toggle is on, the audio is sent to **ai-coustics REST API** (Finch model) to clean/normalize before the call.
-3. **Node 4 call**: Server function POSTs to **Telli (teli.ai)** to initiate the outbound call with the prepared script/audio, the target number, and `max_duration_seconds: 120`.
-4. **Webhook callback**: A public route at `/api/public/telli/webhook` receives Telli's call-completed callback (signature-verified) with recording URL + transcript.
-5. **Node 4 post-call**: Recording URL is fetched and sent to **ai-coustics REST API** (Lark model) for cleanup. Cleaned audio + transcript stored.
-6. **Node 5 logging**: Outcome (`completed`, `no-answer`, `failed`, duration, transcript, cleaned audio link) is written to the runs table and pushed live to the dashboard.
+### 3d. `src/routes/sales-personas.tsx` — new
+- Header + "Issue 04 · Spring '26" subtle right-aligned label (pure decoration, hardcoded).
+- Vertical stack of persona cards. Each card: circular monogram avatar (colored by `avatar_color`), name + italic tagline, description, "BEST FOR" tags.
+- Selected persona gets the sage-tinted background ring (`bg-accent/10 ring-1 ring-accent/40`) seen in the mockup.
+- Click to expand inline editor for the prompt text (only for user-edited copies; defaults stay read-only).
 
-## 6. Run detail (`/runs/$runId`)
+### 3e. `src/routes/campaigns.tsx` — new (replaces "Flows" as the primary CTA)
+Two-column layout exactly like the mockup:
+- **Left rail (`ALL CAMPAIGNS`)**: list of campaigns, each row showing name, lead count, voice (persona name), and a status dot (Running/Draft).
+- **Right panel (selected campaign)**: name, status, persona card (with monogram), leads list with phone numbers and per-lead status, "Additional information & brief" textarea, "What to talk about" numbered talking-points editor (add/remove rows), and footer actions: **Launch campaign** / **Test with one number** / **Save as draft**.
+- "Launch campaign" creates a `run` row pre-wired with `campaign_id` + `lead_id` and navigates to the existing `/conversations/$runId` page — so the actual voice loop (Gradium TTS → mic → Gradium STT → Lovable AI → repeat) runs unchanged.
+- "Test with one number" opens a quick dialog to type any phone-style label and starts a browser conversation without consuming a real lead.
 
-Per-call detail page showing: target number, duration, outcome, full transcript, audio player for the cleaned recording, the exact script the agent generated, timing of each node.
+## Phase 4 — Wire-through + polish (~2–3 hrs)
 
-## 7. Backend / data
+- `agentReply` server function gets `whoWeAre` / `whatWeDo` from `company_profile` and `persona` from `sales_personas.prompt` (looked up via `campaign_id` on the run). No client-side prompt changes.
+- Conversation page (`conversations.$runId.tsx`) gets a small header chip: "Campaign · Q2 Berlin agencies · Voice · Margot" so you know which call you're in.
+- Run detail page (`runs.$runId.tsx`) keeps the Gemini "Generate report" button as-is, plus a back-link to its campaign and a one-click "Mark lead as Scheduled / Called" action that updates `leads.status`.
+- Keep the existing "Operate → Flows" pages working untouched as a power-user view (so nothing currently in your DB breaks).
 
-Lovable Cloud tables:
-- `profiles` — minimal user profile
-- `flows` — id, user_id, name, who_we_are, what_we_do, hermozi_knowledge, phone_numbers, voice_settings
-- `runs` — id, flow_id, user_id, phone_number, status, generated_script, transcript, recording_url, cleaned_recording_url, duration_seconds, telli_call_id, started_at, completed_at, error
-- RLS: each user only sees their own flows/runs.
+## What stays exactly the same
 
-Server-side (TanStack Start server functions + public route for webhook):
-- `runFlow(flowId)` — orchestrator
-- `generateScript` — Lovable AI Gateway call
-- `enhanceAudio` — ai-coustics REST proxy
-- `placeCall` — Telli REST proxy
-- `/api/public/telli/webhook` — signature-verified callback receiver
+- `src/lib/gradium.functions.ts` — all four server functions (`gradiumTTS`, `gradiumSTT`, `agentReply`, `generateReport`) untouched. They just receive the new fields from the new tables.
+- `src/integrations/supabase/client.ts`, auth flow, login page, root layout — untouched.
+- All existing `runs` data — preserved; the new `campaign_id` / `lead_id` columns are nullable.
+- Design tokens in `styles.css` — already match the mockups; no token changes needed.
 
-## 8. Secrets you'll add when ready
+## What I'd flag as the only real risks
 
-I'll prompt for these at the right moment (no need to share now):
-- `TELLI_API_KEY` — from teli.ai dashboard, sent as `X-API-Key`
-- `TELLI_WEBHOOK_SECRET` — for HMAC verification of callbacks
-- `AICOUSTICS_API_KEY` — from ai-coustics developer portal
-- `LOVABLE_API_KEY` — auto-provided by Lovable Cloud, no action needed
+1. **Sidebar counts on every page** — solved by one shared hook with `count: 'exact', head: true` queries (cheap).
+2. **Seeding 8 default personas per user** — done in the `handle_new_user()` trigger alongside the existing profile insert; idempotent.
+3. **The "Now dialing" card needing realtime** — already have a Supabase realtime channel on `runs` from the current dashboard; reuse it.
 
-## 9. Design system
+## Suggested order if you want to ship in stages
 
-- **Palette**: warm off-white background, deep ink text, single muted accent (sage or soft indigo)
-- **Type**: one elegant serif for headings (e.g. Fraunces), clean sans for body (Inter)
-- **Motion**: slow fades, no bounces; the canvas nodes pulse gently when running
+1. **Day 1 morning**: Phase 1 (sidebar) + Phase 2 (migration). The app already looks 60% closer to the mockups after just the sidebar swap.
+2. **Day 1 afternoon**: Dashboard + Leads + Company pages (the three "static" pages).
+3. **Day 2 morning**: Sales personas page + seed data.
+4. **Day 2 afternoon**: Campaigns page (the most complex one) + wire-through to the existing conversation/report flow.
 
-## 10. What's out of scope for the hackathon
-
-- No drag-and-drop node editing (5 nodes are fixed)
-- No team/workspace sharing
-- No billing UI
-- No SMS, only voice calls
-- English-only Hermozi prompt (other languages can be added by editing Node 3 text)
-
-## 11. Build order
-
-1. Set up Lovable Cloud + auth + DB schema
-2. Landing page + login + empty dashboard shell
-3. Flow builder UI with 5-node canvas + per-node config
-4. Hermozi script generation via Lovable AI
-5. Telli call placement + webhook receiver
-6. ai-coustics pre + post processing
-7. Run detail page + live status updates
-8. Polish: zen visual pass, motion, edge-case states
+If you want to compress further, **Phase 1 + the Campaigns page alone** (~half a day) gives you the most visual impact and keeps everything else as-is.

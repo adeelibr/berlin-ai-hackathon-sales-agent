@@ -14,6 +14,140 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_leads: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          lead_id: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_leads_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          brief: string
+          created_at: string
+          id: string
+          name: string
+          persona_id: string | null
+          status: string
+          talking_points: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brief?: string
+          created_at?: string
+          id?: string
+          name?: string
+          persona_id?: string | null
+          status?: string
+          talking_points?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brief?: string
+          created_at?: string
+          id?: string
+          name?: string
+          persona_id?: string | null
+          status?: string
+          talking_points?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "sales_personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_profile: {
+        Row: {
+          created_at: string
+          id: string
+          industry: string
+          linkedin: string
+          logo_url: string | null
+          name: string
+          tagline: string
+          target_customer: string
+          twitter: string
+          updated_at: string
+          user_id: string
+          value_prop: string
+          website: string
+          what_we_do: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          industry?: string
+          linkedin?: string
+          logo_url?: string | null
+          name?: string
+          tagline?: string
+          target_customer?: string
+          twitter?: string
+          updated_at?: string
+          user_id: string
+          value_prop?: string
+          website?: string
+          what_we_do?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          industry?: string
+          linkedin?: string
+          logo_url?: string | null
+          name?: string
+          tagline?: string
+          target_customer?: string
+          twitter?: string
+          updated_at?: string
+          user_id?: string
+          value_prop?: string
+          website?: string
+          what_we_do?: string
+        }
+        Relationships: []
+      }
       flows: {
         Row: {
           agent_persona: string
@@ -47,6 +181,42 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          company: string
+          created_at: string
+          id: string
+          name: string
+          notes: string
+          phone: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string
+          phone?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string
+          phone?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -70,10 +240,12 @@ export type Database = {
       }
       runs: {
         Row: {
+          campaign_id: string | null
           completed_at: string | null
           error: string | null
           flow_id: string
           id: string
+          lead_id: string | null
           report: Json | null
           report_generated_at: string | null
           started_at: string
@@ -82,10 +254,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          campaign_id?: string | null
           completed_at?: string | null
           error?: string | null
           flow_id: string
           id?: string
+          lead_id?: string | null
           report?: Json | null
           report_generated_at?: string | null
           started_at?: string
@@ -94,10 +268,12 @@ export type Database = {
           user_id: string
         }
         Update: {
+          campaign_id?: string | null
           completed_at?: string | null
           error?: string | null
           flow_id?: string
           id?: string
+          lead_id?: string | null
           report?: Json | null
           report_generated_at?: string | null
           started_at?: string
@@ -107,20 +283,82 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "runs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "runs_flow_id_fkey"
             columns: ["flow_id"]
             isOneToOne: false
             referencedRelation: "flows"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "runs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      sales_personas: {
+        Row: {
+          avatar_color: string
+          best_for: string[]
+          created_at: string
+          description: string
+          id: string
+          is_default: boolean
+          key: string
+          name: string
+          prompt: string
+          sort_order: number
+          tagline: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_color?: string
+          best_for?: string[]
+          created_at?: string
+          description?: string
+          id?: string
+          is_default?: boolean
+          key: string
+          name: string
+          prompt?: string
+          sort_order?: number
+          tagline?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_color?: string
+          best_for?: string[]
+          created_at?: string
+          description?: string
+          id?: string
+          is_default?: boolean
+          key?: string
+          name?: string
+          prompt?: string
+          sort_order?: number
+          tagline?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      seed_default_personas: { Args: { _user_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
