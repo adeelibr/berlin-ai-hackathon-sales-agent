@@ -5,6 +5,12 @@ This project supports two outbound call demo modes:
 - `dummy`: a browser-based iPhone-style demo handset at `/phone-dummy/<number>`
 - `twilio`: a real outbound Twilio phone call using the local Node media bridge
 
+## Documentation
+
+- [Architecture overview](docs/ARCHITECTURE.md)
+- [Demo guide](docs/DEMO.md)
+- [Hackathon submission checklist](docs/SUBMISSION_CHECKLIST.md)
+
 This guide explains how to run the project locally, configure `.env`, expose it with ngrok, and demo both transports.
 
 The guide assumes:
