@@ -11,6 +11,7 @@ import { ChevronDown, ChevronUp, Save, Volume2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { gradiumTTS } from "@/lib/gradium.functions";
+import { authHeaders } from "@/lib/server-fn-auth";
 
 export const Route = createFileRoute("/personas")({
   component: () => <AuthGuard><PersonasPage /></AuthGuard>,
@@ -71,6 +72,7 @@ function PersonasPage() {
           text: `Hi, this is ${p.name}. ${p.tagline} Let's see how I sound.`,
           voiceId: voiceId || undefined,
         },
+        headers: await authHeaders(),
       });
       const bin = atob(audioBase64);
       const bytes = new Uint8Array(bin.length);

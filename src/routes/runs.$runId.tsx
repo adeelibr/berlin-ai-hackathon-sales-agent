@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useServerFn } from "@tanstack/react-start";
 import { generateReport } from "@/lib/gradium.functions";
+import { authHeaders } from "@/lib/server-fn-auth";
 
 export const Route = createFileRoute("/runs/$runId")({
   component: () => <AuthGuard><RunDetail /></AuthGuard>,
@@ -63,7 +64,10 @@ function RunDetail() {
     if (!run?.transcript?.trim()) { toast.error("No transcript to analyze"); return; }
     setGenerating(true);
     try {
-      const { reportJson } = await generateFn({ data: { transcript: run.transcript } });
+      const { reportJson } = await generateFn({
+        data: { transcript: run.transcript },
+        headers: await authHeaders(),
+      });
       const report = JSON.parse(reportJson) as SalesReport;
       const { error } = await supabase
         .from("runs")
