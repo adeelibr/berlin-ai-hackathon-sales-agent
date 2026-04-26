@@ -1,30 +1,30 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
-
-function adminClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Supabase server env not configured");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
  * Gradium TTS via REST: server-side call (keeps API key safe), returns base64 WAV.
  */
 export const gradiumTTS = createServerFn({ method: "POST" })
-  .inputValidator((data: { text: string; voiceId?: string; personaId?: string; userId?: string }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { text: string; voiceId?: string; personaId?: string }) => {
+    if (!data || typeof data.text !== "string" || !data.text.trim()) {
+      throw new Error("text is required");
+    }
+    if (data.text.length > 4000) throw new Error("text too long");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
     const apiKey = process.env.GRADIUM_API_KEY;
     if (!apiKey) throw new Error("GRADIUM_API_KEY not configured");
     let voice = data.voiceId || "";
-    if (!voice && data.personaId && data.userId) {
+    if (!voice && data.personaId) {
       try {
-        const sb = adminClient();
+        // RLS-scoped client from middleware: only matches caller's personas.
+        const sb = context.supabase;
         const { data: p } = await sb
           .from("sales_personas")
           .select("voice_id")
           .eq("id", data.personaId)
-          .eq("user_id", data.userId)
           .maybeSingle();
         if (p?.voice_id) voice = p.voice_id;
       } catch { /* fall back to default */ }
@@ -67,7 +67,15 @@ export const gradiumTTS = createServerFn({ method: "POST" })
  * Browsers can't set custom WS headers, so this proxy lives on the server.
  */
 export const gradiumSTT = createServerFn({ method: "POST" })
-  .inputValidator((data: { audioBase64: string }) => data)
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { audioBase64: string }) => {
+    if (!data || typeof data.audioBase64 !== "string" || !data.audioBase64) {
+      throw new Error("audioBase64 is required");
+    }
+    // ~8 MB encoded -> ~6 MB raw audio cap
+    if (data.audioBase64.length > 8_000_000) throw new Error("audio too large");
+    return data;
+  })
   .handler(async ({ data }) => {
     const apiKey = process.env.GRADIUM_API_KEY;
     if (!apiKey) {
@@ -179,16 +187,26 @@ export const gradiumSTT = createServerFn({ method: "POST" })
  * Lovable AI agent reply.
  */
 export const agentReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: {
     whoWeAre?: string;
     whatWeDo?: string;
     persona?: string;
     campaignId?: string | null;
-    userId?: string;
     history: { role: "assistant" | "user"; content: string }[];
     nextRole: "assistant" | "user";
-  }) => data)
-  .handler(async ({ data }) => {
+  }) => {
+    if (!data || !Array.isArray(data.history)) throw new Error("history is required");
+    if (data.history.length > 200) throw new Error("history too long");
+    for (const m of data.history) {
+      if (!m || (m.role !== "assistant" && m.role !== "user")) throw new Error("invalid history role");
+      if (typeof m.content !== "string" || m.content.length > 8000) throw new Error("invalid history content");
+    }
+    if (data.nextRole !== "assistant" && data.nextRole !== "user") throw new Error("invalid nextRole");
+    if (data.campaignId != null && typeof data.campaignId !== "string") throw new Error("invalid campaignId");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -198,14 +216,14 @@ export const agentReply = createServerFn({ method: "POST" })
     let valueProp = "";
     let targetCustomer = "";
 
-    // If a campaign is attached, hydrate context from the database
-    if (data.campaignId && data.userId) {
-      const sb = adminClient();
+    // If a campaign is attached, hydrate context from the database.
+    // RLS guarantees we only read campaigns the caller owns.
+    if (data.campaignId) {
+      const sb = context.supabase;
       const { data: campaign } = await sb
         .from("campaigns")
         .select("brief, talking_points, persona_id, company_name, company_tagline, company_what_we_do, company_value_prop, company_target_customer")
         .eq("id", data.campaignId)
-        .eq("user_id", data.userId)
         .maybeSingle();
       if (campaign?.persona_id) {
         const { data: p } = await sb
@@ -281,7 +299,14 @@ Rules:
  * Uses Lovable AI (Gemini) with tool calling for guaranteed JSON shape.
  */
 export const generateReport = createServerFn({ method: "POST" })
-  .inputValidator((data: { transcript: string }) => data)
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { transcript: string }) => {
+    if (!data || typeof data.transcript !== "string" || !data.transcript.trim()) {
+      throw new Error("transcript is required");
+    }
+    if (data.transcript.length > 200_000) throw new Error("transcript too long");
+    return data;
+  })
   .handler(async ({ data }) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
