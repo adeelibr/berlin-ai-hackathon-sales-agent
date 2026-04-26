@@ -23,7 +23,8 @@ function Conversation() {
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [history, setHistory] = useState<Turn[]>([]);
-  const [flowCtx, setFlowCtx] = useState<{ whoWeAre: string; whatWeDo: string; persona: string } | null>(null);
+  const [flowCtx, setFlowCtx] = useState<{ whoWeAre: string; whatWeDo: string; persona: string; campaignId: string | null } | null>(null);
+  const [chip, setChip] = useState<{ campaign: string; persona: string; lead: string }>({ campaign: "", persona: "", lead: "" });
   const [statusText, setStatusText] = useState("");
 
   const ttsFn = useServerFn(gradiumTTS);
@@ -40,7 +41,7 @@ function Conversation() {
     if (!user) return;
     (async () => {
       const { data: run, error: runErr } = await supabase
-        .from("runs").select("flow_id, transcript, status").eq("id", runId).maybeSingle();
+        .from("runs").select("flow_id, transcript, status, campaign_id, lead_id").eq("id", runId).maybeSingle();
       if (runErr || !run) { toast.error(runErr?.message ?? "Run not found"); return; }
 
       if (run.status === "completed") {
@@ -51,9 +52,35 @@ function Conversation() {
 
       const { data: flow, error: flowErr } = await supabase
         .from("flows").select("who_we_are, what_we_do, agent_persona").eq("id", run.flow_id).maybeSingle();
-      if (flowErr || !flow) { toast.error(flowErr?.message ?? "Flow not found"); return; }
+      if (flowErr) { toast.error(flowErr.message); return; }
 
-      setFlowCtx({ whoWeAre: flow.who_we_are, whatWeDo: flow.what_we_do, persona: flow.agent_persona });
+      setFlowCtx({
+        whoWeAre: flow?.who_we_are ?? "",
+        whatWeDo: flow?.what_we_do ?? "",
+        persona: flow?.agent_persona ?? "",
+        campaignId: run.campaign_id ?? null,
+      });
+
+      // Hydrate chip labels (campaign · persona · lead)
+      const [campRes, leadRes] = await Promise.all([
+        run.campaign_id
+          ? supabase.from("campaigns").select("name,persona_id").eq("id", run.campaign_id).maybeSingle()
+          : Promise.resolve({ data: null } as const),
+        run.lead_id
+          ? supabase.from("leads").select("name,company").eq("id", run.lead_id).maybeSingle()
+          : Promise.resolve({ data: null } as const),
+      ]);
+      let personaName = "";
+      if (campRes.data?.persona_id) {
+        const { data: p } = await supabase.from("sales_personas").select("name").eq("id", campRes.data.persona_id).maybeSingle();
+        personaName = p?.name ?? "";
+      }
+      setChip({
+        campaign: campRes.data?.name ?? "",
+        persona: personaName,
+        lead: leadRes.data ? `${leadRes.data.name}${leadRes.data.company ? ` · ${leadRes.data.company}` : ""}` : "",
+      });
+
       setPhase("ready");
     })();
   }, [runId, user, navigate]);
@@ -88,7 +115,7 @@ function Conversation() {
   const startGreeting = useCallback(async () => {
     if (!flowCtx) return;
     try {
-      const { text } = await aiFn({ data: { ...flowCtx, history: [], nextRole: "assistant" } });
+      const { text } = await aiFn({ data: { ...flowCtx, userId: user?.id, history: [], nextRole: "assistant" } });
       const turn: Turn = { role: "assistant", content: text };
       const next = [turn];
       await persistTurn(turn, next);
@@ -99,7 +126,7 @@ function Conversation() {
       toast.error(e instanceof Error ? e.message : "Agent failed");
       setPhase("ready");
     }
-  }, [flowCtx, aiFn, speak, persistTurn]);
+  }, [flowCtx, aiFn, speak, persistTurn, user?.id]);
 
   useEffect(() => {
     if (phase === "ready" && history.length === 0 && flowCtx) {
@@ -195,7 +222,7 @@ function Conversation() {
 
       setStatusText("Agent thinking…");
       const { text: replyText } = await aiFn({
-        data: { ...flowCtx!, history: afterUser, nextRole: "assistant" },
+        data: { ...flowCtx!, userId: user?.id, history: afterUser, nextRole: "assistant" },
       });
 
       const agentTurn: Turn = { role: "assistant", content: replyText };
@@ -229,6 +256,14 @@ function Conversation() {
           </button>
           <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{statusText}</span>
         </div>
+
+        {(chip.campaign || chip.persona || chip.lead) && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            {chip.campaign && <span className="rounded-full border border-border/60 bg-card/40 px-2.5 py-1">Campaign · {chip.campaign}</span>}
+            <span className="rounded-full border border-border/60 bg-card/40 px-2.5 py-1">Voice{chip.persona ? ` · ${chip.persona}` : ""}</span>
+            {chip.lead && <span className="rounded-full border border-border/60 bg-card/40 px-2.5 py-1">{chip.lead}</span>}
+          </div>
+        )}
 
         {/* Big mic */}
         <div className="mt-12 flex flex-col items-center">

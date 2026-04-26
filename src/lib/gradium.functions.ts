@@ -1,4 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
+
+function adminClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase server env not configured");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 /**
  * Gradium TTS via REST: server-side call (keeps API key safe), returns base64 WAV.
@@ -128,9 +136,11 @@ export const gradiumSTT = createServerFn({ method: "POST" })
  */
 export const agentReply = createServerFn({ method: "POST" })
   .inputValidator((data: {
-    whoWeAre: string;
-    whatWeDo: string;
-    persona: string;
+    whoWeAre?: string;
+    whatWeDo?: string;
+    persona?: string;
+    campaignId?: string | null;
+    userId?: string;
     history: { role: "assistant" | "user"; content: string }[];
     nextRole: "assistant" | "user";
   }) => data)
@@ -138,16 +148,56 @@ export const agentReply = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
+    let whoWeAre = data.whoWeAre ?? "";
+    let whatWeDo = data.whatWeDo ?? "";
+    let persona = data.persona ?? "";
+    let valueProp = "";
+    let targetCustomer = "";
+
+    // If a campaign is attached, hydrate context from the database
+    if (data.campaignId && data.userId) {
+      const sb = adminClient();
+      const { data: campaign } = await sb
+        .from("campaigns")
+        .select("brief, talking_points, persona_id")
+        .eq("id", data.campaignId)
+        .eq("user_id", data.userId)
+        .maybeSingle();
+      if (campaign?.persona_id) {
+        const { data: p } = await sb
+          .from("sales_personas").select("prompt").eq("id", campaign.persona_id).maybeSingle();
+        if (p?.prompt) persona = p.prompt;
+      }
+      if (campaign?.brief) {
+        whatWeDo = (whatWeDo ? whatWeDo + "\n\n" : "") + `Campaign brief: ${campaign.brief}`;
+      }
+      if (Array.isArray(campaign?.talking_points) && campaign.talking_points.length) {
+        whatWeDo += `\n\nTalking points:\n- ${campaign.talking_points.join("\n- ")}`;
+      }
+      const { data: company } = await sb
+        .from("company_profile")
+        .select("name, tagline, what_we_do, value_prop, target_customer")
+        .eq("user_id", data.userId)
+        .maybeSingle();
+      if (company) {
+        whoWeAre = [company.name, company.tagline].filter(Boolean).join(" — ") || whoWeAre;
+        if (company.what_we_do) whatWeDo = (company.what_we_do + (whatWeDo ? "\n\n" + whatWeDo : ""));
+        valueProp = company.value_prop ?? "";
+        targetCustomer = company.target_customer ?? "";
+      }
+    }
+
     const system = `You are a voice agent in a live spoken conversation.
 
 About us:
-${data.whoWeAre || "(not provided)"}
+${whoWeAre || "(not provided)"}
 
 What we do:
-${data.whatWeDo || "(not provided)"}
+${whatWeDo || "(not provided)"}
+${valueProp ? `\nValue proposition:\n${valueProp}\n` : ""}${targetCustomer ? `\nTarget customer:\n${targetCustomer}\n` : ""}
 
 Your persona and instructions:
-${data.persona || "Be warm, brief, conversational. Ask one question at a time."}
+${persona || "Be warm, brief, conversational. Ask one question at a time."}
 
 Rules:
 - This is SPOKEN, not written. 1–3 short sentences max per turn.
