@@ -332,7 +332,12 @@ export const generateReport = createServerFn({ method: "POST" })
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema,
-          temperature: 0.4,
+          // Deterministic decoding: same transcript -> same report.
+          temperature: 0,
+          topP: 0,
+          topK: 1,
+          candidateCount: 1,
+          seed: 7,
         },
       }),
     });
