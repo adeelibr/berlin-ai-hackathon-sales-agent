@@ -5,8 +5,12 @@ import { useAuth } from "@/lib/auth-context";
 import { AppShell, AuthGuard } from "@/components/AppShell";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ChevronDown, ChevronUp, Save, Volume2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { gradiumTTS } from "@/lib/gradium.functions";
 
 export const Route = createFileRoute("/personas")({
   component: () => <AuthGuard><PersonasPage /></AuthGuard>,
@@ -15,7 +19,7 @@ export const Route = createFileRoute("/personas")({
 type Persona = {
   id: string; key: string; name: string; tagline: string;
   description: string; best_for: string[]; prompt: string;
-  avatar_color: string; sort_order: number;
+  avatar_color: string; sort_order: number; voice_id: string;
 };
 
 const COLOR: Record<string, string> = {
@@ -30,7 +34,10 @@ function PersonasPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [voiceDrafts, setVoiceDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const ttsFn = useServerFn(gradiumTTS);
 
   useEffect(() => {
     if (!user) return;
@@ -46,12 +53,37 @@ function PersonasPage() {
   const savePrompt = async (p: Persona) => {
     setSavingId(p.id);
     const newPrompt = drafts[p.id] ?? p.prompt;
+    const newVoice = voiceDrafts[p.id] ?? p.voice_id ?? "";
     const { error } = await supabase.from("sales_personas")
-      .update({ prompt: newPrompt }).eq("id", p.id);
+      .update({ prompt: newPrompt, voice_id: newVoice }).eq("id", p.id);
     setSavingId(null);
     if (error) { toast.error(error.message); return; }
-    setPersonas((prev) => prev.map((x) => x.id === p.id ? { ...x, prompt: newPrompt } : x));
-    toast.success("Prompt saved");
+    setPersonas((prev) => prev.map((x) => x.id === p.id ? { ...x, prompt: newPrompt, voice_id: newVoice } : x));
+    toast.success("Saved");
+  };
+
+  const previewVoice = async (p: Persona) => {
+    setPreviewingId(p.id);
+    try {
+      const voiceId = (voiceDrafts[p.id] ?? p.voice_id ?? "").trim();
+      const { audioBase64, mime } = await ttsFn({
+        data: {
+          text: `Hi, this is ${p.name}. ${p.tagline} Let's see how I sound.`,
+          voiceId: voiceId || undefined,
+        },
+      });
+      const bin = atob(audioBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setPreviewingId(null);
+    }
   };
 
   return (
@@ -111,9 +143,38 @@ function PersonasPage() {
                       value={drafts[p.id] ?? p.prompt}
                       onChange={(e) => setDrafts({ ...drafts, [p.id]: e.target.value })}
                     />
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-5">
+                      <Label htmlFor={`voice-${p.id}`} className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                        Voice ID
+                      </Label>
+                      <div className="mt-3 flex gap-2">
+                        <Input
+                          id={`voice-${p.id}`}
+                          placeholder="Gradium voice_id, e.g. YTpq7expH9539ERJ"
+                          className="font-mono text-xs"
+                          value={voiceDrafts[p.id] ?? p.voice_id ?? ""}
+                          onChange={(e) => setVoiceDrafts({ ...voiceDrafts, [p.id]: e.target.value })}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => previewVoice(p)}
+                          disabled={previewingId === p.id}
+                        >
+                          {previewingId === p.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Volume2 className="h-3.5 w-3.5" />}
+                          Preview
+                        </Button>
+                      </div>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Find voice IDs in your Gradium dashboard → Voices. Leave blank to use the workspace default.
+                      </p>
+                    </div>
+                    <div className="mt-5 flex justify-end">
                       <Button size="sm" onClick={() => savePrompt(p)} disabled={savingId === p.id}>
-                        <Save className="h-3.5 w-3.5" /> {savingId === p.id ? "Saving…" : "Save prompt"}
+                        <Save className="h-3.5 w-3.5" /> {savingId === p.id ? "Saving…" : "Save persona"}
                       </Button>
                     </div>
                   </div>
